@@ -20,9 +20,9 @@ from organizers.serializers import (
 
 
 @extend_schema(
-    tags=['Профиль организатора'],
+    tags=['Organizer Profiles'],
     summary='Список организаторов',
-    description='Все верифицированные организаторы платформы с количеством проведённых мероприятий.',
+    description='Верифицированные организаторы платформы с числом проведённых мероприятий.',
 )
 class OrganizerListView(ListAPIView):
     serializer_class = OrganizerListSerializer
@@ -41,9 +41,9 @@ class OrganizerProfileView(APIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
-        tags=['Профиль организатора'],
+        tags=['Organizer Profiles'],
         summary='Публичный профиль организатора',
-        description='Подробная страница организатора: статистика мероприятий, средний рейтинг доверия и типичные призы.',
+        description='Статистика мероприятий, средний рейтинг доверия и типичные призы.',
         responses={200: OrganizerProfileSerializer},
     )
     def get(self, request, pk):
@@ -85,9 +85,9 @@ class OrganizerProfileView(APIView):
 
 
 @extend_schema(
-    tags=['Профиль организатора'],
+    tags=['Organizer Profiles'],
     summary='Мероприятия организатора',
-    description='Список всех мероприятий, проведённых данным организатором.',
+    description='Все мероприятия, созданные выбранным организатором.',
 )
 class OrganizerEventsView(ListAPIView):
     serializer_class = OrganizerEventSerializer
@@ -98,9 +98,9 @@ class OrganizerEventsView(ListAPIView):
 
 
 @extend_schema(
-    tags=['Профиль организатора'],
+    tags=['Organizer Profiles'],
     summary='Отзывы об организаторе',
-    description='Отзывы участников об организаторе с оценками от 1 до 5.',
+    description='Отзывы участников с оценками от 1 до 5.',
 )
 class OrganizerReviewsListView(ListAPIView):
     serializer_class = OrganizerReviewSerializer
@@ -118,9 +118,9 @@ class OrganizerReviewCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
-        tags=['Профиль организатора'],
+        tags=['Organizer Profiles'],
         summary='Оставить отзыв',
-        description='Только для участников. Можно оставить один отзыв на мероприятие при условии подтверждённого участия.',
+        description='Только для участников: один отзыв на мероприятие при подтверждённом участии.',
         request=OrganizerReviewCreateSerializer,
         responses={201: OrganizerReviewSerializer},
     )
@@ -173,12 +173,13 @@ class OrganizerReviewCreateView(APIView):
 
 
 @extend_schema(
-    tags=['Профиль организатора'],
+    tags=['Organizer Profiles'],
     summary='Удалить свой отзыв',
-    description='Участник может удалить только свой собственный отзыв.',
+    description='Участник может удалить только свой отзыв.',
 )
 class OrganizerReviewDeleteView(DestroyAPIView):
     permission_classes = [IsAuthenticated]
+    serializer_class = OrganizerReviewSerializer
 
     def get_object(self):
         review = get_object_or_404(

@@ -1,16 +1,13 @@
 from django.contrib.auth import get_user_model
 
+from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view, inline_serializer
 from rest_framework import exceptions, mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter
-from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
+from rest_framework import serializers
 
-from drf_yasg import openapi
-from drf_yasg.utils import swagger_auto_schema
-
-from accounts.permissions import IsParticipant
 from events.filters import filter_events
 from events.models import Event, Participation, Prize
 from events.serializers import EventSerializer, ParticipationSerializer, PrizeSerializer
@@ -19,28 +16,50 @@ from events.services import checkin_for_event, confirm_participation, register_f
 User = get_user_model()
 
 
-class ParticipantsPagination(PageNumberPagination):
-    page_size = 20
-    page_size_query_param = "page_size"
-    max_page_size = 100
+EVENT_LIST_PARAMETERS = [
+    OpenApiParameter(name="category", description="Слаг направления", required=False, type=str),
+    OpenApiParameter(name="status", description="Статус мероприятия", required=False, type=str),
+    OpenApiParameter(name="event_type", description="Тип мероприятия", required=False, type=str),
+    OpenApiParameter(name="organizer_id", description="ID организатора", required=False, type=int),
+    OpenApiParameter(name="date_from", description="Начало периода (YYYY-MM-DD)", required=False, type=str),
+    OpenApiParameter(name="date_to", description="Конец периода (YYYY-MM-DD)", required=False, type=str),
+    OpenApiParameter(name="ordering", description="Поле сортировки", required=False, type=str),
+]
 
 
-class ParticipantEventsPagination(PageNumberPagination):
-    page_size = 20
-    page_size_query_param = "page_size"
-    max_page_size = 100
-
-
-_PARTICIPANT_EVENT_ORDERING = {
-    "event_date": "event_date",
-    "-event_date": "-event_date",
-    "created_at": "created_at",
-    "-created_at": "-created_at",
-    "name": "name",
-    "-name": "-name",
-}
-
-
+@extend_schema_view(
+    list=extend_schema(
+        tags=["Events"],
+        summary="Список мероприятий",
+        description="Лента мероприятий с пагинацией, фильтрацией и сортировкой.",
+        parameters=EVENT_LIST_PARAMETERS,
+    ),
+    create=extend_schema(
+        tags=["Events"],
+        summary="Создать мероприятие",
+        description="Доступно организатору или администратору. Организатором записи становится текущий пользователь.",
+    ),
+    retrieve=extend_schema(
+        tags=["Events"],
+        summary="Карточка мероприятия",
+        description="Подробная информация о мероприятии и связанных призах.",
+    ),
+    update=extend_schema(
+        tags=["Events"],
+        summary="Полная замена мероприятия",
+        description="Полное обновление карточки мероприятия его организатором или администратором.",
+    ),
+    partial_update=extend_schema(
+        tags=["Events"],
+        summary="Частичное обновление мероприятия",
+        description="Частичное обновление карточки мероприятия его организатором или администратором.",
+    ),
+    destroy=extend_schema(
+        tags=["Events"],
+        summary="Удалить мероприятие",
+        description="Удаление мероприятия его организатором или администратором.",
+    ),
+)
 class EventViewSet(viewsets.ModelViewSet):
     """Мероприятия: CRUD, регистрация, чекин и подтверждение участия."""
 
@@ -55,158 +74,66 @@ class EventViewSet(viewsets.ModelViewSet):
         queryset = super().get_queryset()
         return filter_events(queryset, self.request.query_params)
 
-    def _participant_event_ordering(self, request, default: str = "event_date") -> str:
-        raw = request.query_params.get("ordering", default)
-        return _PARTICIPANT_EVENT_ORDERING.get(raw, _PARTICIPANT_EVENT_ORDERING.get(default, "event_date"))
+    def _ensure_organizer_access(self, event=None):
+        user = self.request.user
+        if not user.is_authenticated:
+            raise exceptions.NotAuthenticated()
 
-    @action(
-        detail=False,
-        methods=["get"],
-        url_path="participant/catalog",
-        permission_classes=[IsAuthenticated, IsParticipant],
-    )
-    @swagger_auto_schema(
-        operation_description=(
-            "Каталог мероприятий для участника: только опубликованные / идущие / завершённые. "
-            "Пагинация и сортировка по времени мероприятия (`event_date`)."
-        ),
-        manual_parameters=[
-            openapi.Parameter("page", openapi.IN_QUERY, description="Номер страницы", type=openapi.TYPE_INTEGER),
-            openapi.Parameter(
-                "page_size",
-                openapi.IN_QUERY,
-                description="Размер страницы (до 100)",
-                type=openapi.TYPE_INTEGER,
-            ),
-            openapi.Parameter(
-                "ordering",
-                openapi.IN_QUERY,
-                description="Сортировка: event_date, -event_date (по умолчанию event_date — сначала ближайшие)",
-                type=openapi.TYPE_STRING,
-            ),
-            openapi.Parameter("category", openapi.IN_QUERY, description="slug категории", type=openapi.TYPE_STRING),
-            openapi.Parameter("event_type", openapi.IN_QUERY, description="тип мероприятия", type=openapi.TYPE_STRING),
-            openapi.Parameter("organizer_id", openapi.IN_QUERY, description="ID организатора", type=openapi.TYPE_INTEGER),
-            openapi.Parameter("date_from", openapi.IN_QUERY, description="дата события с (YYYY-MM-DD)", type=openapi.TYPE_STRING),
-            openapi.Parameter("date_to", openapi.IN_QUERY, description="дата события по (YYYY-MM-DD)", type=openapi.TYPE_STRING),
-        ],
-    )
-    def participant_catalog(self, request):
-        queryset = (
-            Event.objects.filter(
-                status__in=[
-                    Event.Status.PUBLISHED,
-                    Event.Status.ONGOING,
-                    Event.Status.COMPLETED,
-                ]
-            )
-            .select_related("category", "organizer")
-            .prefetch_related("prizes")
-        )
-        queryset = filter_events(queryset, request.query_params)
-        queryset = queryset.order_by(self._participant_event_ordering(request, default="event_date"))
+        is_admin = user.is_staff or user.role == User.Role.ADMIN
+        is_organizer = user.role == User.Role.ORGANIZER
+        if not (is_admin or is_organizer):
+            raise exceptions.PermissionDenied("Only organizers or admins can manage events.")
 
-        paginator = ParticipantEventsPagination()
-        page = paginator.paginate_queryset(queryset, request, view=self)
-        if page is not None:
-            return paginator.get_paginated_response(EventSerializer(page, many=True).data)
-        return Response(EventSerializer(queryset, many=True).data)
+        if event is not None and not is_admin and event.organizer_id != user.id:
+            raise exceptions.PermissionDenied("Only the event organizer can manage this event.")
 
-    @action(
-        detail=False,
-        methods=["get"],
-        url_path="participant/my",
-        permission_classes=[IsAuthenticated, IsParticipant],
-    )
-    @swagger_auto_schema(
-        operation_description=(
-            "Мероприятия, на которые зарегистрирован текущий участник. "
-            "Пагинация и сортировка по времени мероприятия (`event_date`)."
-        ),
-        manual_parameters=[
-            openapi.Parameter("page", openapi.IN_QUERY, description="Номер страницы", type=openapi.TYPE_INTEGER),
-            openapi.Parameter(
-                "page_size",
-                openapi.IN_QUERY,
-                description="Размер страницы (до 100)",
-                type=openapi.TYPE_INTEGER,
-            ),
-            openapi.Parameter(
-                "ordering",
-                openapi.IN_QUERY,
-                description="Сортировка: event_date, -event_date (по умолчанию event_date)",
-                type=openapi.TYPE_STRING,
-            ),
-            openapi.Parameter("category", openapi.IN_QUERY, description="slug категории", type=openapi.TYPE_STRING),
-            openapi.Parameter("event_type", openapi.IN_QUERY, description="тип мероприятия", type=openapi.TYPE_STRING),
-            openapi.Parameter("date_from", openapi.IN_QUERY, description="дата события с (YYYY-MM-DD)", type=openapi.TYPE_STRING),
-            openapi.Parameter("date_to", openapi.IN_QUERY, description="дата события по (YYYY-MM-DD)", type=openapi.TYPE_STRING),
-        ],
-    )
-    def participant_my_events(self, request):
-        queryset = (
-            Event.objects.filter(participations__user=request.user)
-            .select_related("category", "organizer")
-            .prefetch_related("prizes")
-            .distinct()
-        )
-        queryset = filter_events(queryset, request.query_params)
-        queryset = queryset.order_by(self._participant_event_ordering(request, default="event_date"))
-
-        paginator = ParticipantEventsPagination()
-        page = paginator.paginate_queryset(queryset, request, view=self)
-        if page is not None:
-            return paginator.get_paginated_response(EventSerializer(page, many=True).data)
-        return Response(EventSerializer(queryset, many=True).data)
-
-    @swagger_auto_schema(operation_description="Получить список мероприятий (с пагинацией, фильтрацией и сортировкой).")
-    def list(self, request, *args, **kwargs):
-        return super().list(request, *args, **kwargs)
-
-    @swagger_auto_schema(operation_description="Создать новое мероприятие.")
-    def create(self, request, *args, **kwargs):
-        return super().create(request, *args, **kwargs)
-
-    @swagger_auto_schema(operation_description="Получить карточку мероприятия по ID.")
-    def retrieve(self, request, *args, **kwargs):
-        return super().retrieve(request, *args, **kwargs)
-
-    @swagger_auto_schema(operation_description="Частично обновить мероприятие.")
-    def partial_update(self, request, *args, **kwargs):
-        return super().partial_update(request, *args, **kwargs)
-
-    @swagger_auto_schema(operation_description="Удалить мероприятие.")
-    def destroy(self, request, *args, **kwargs):
-        return super().destroy(request, *args, **kwargs)
+    def _ensure_participant_access(self):
+        user = self.request.user
+        if not user.is_authenticated:
+            raise exceptions.NotAuthenticated()
+        if user.role != User.Role.PARTICIPANT:
+            raise exceptions.PermissionDenied("Only participants can register for events.")
 
     def perform_create(self, serializer):
+        self._ensure_organizer_access()
         serializer.save(organizer=self.request.user)
 
     def perform_update(self, serializer):
-        event = self.get_object()
-        user = self.request.user
-        if not user.is_staff and event.organizer_id != user.id:
-            raise exceptions.PermissionDenied("Only organizer can update this event.")
+        self._ensure_organizer_access(self.get_object())
         serializer.save()
 
     def perform_destroy(self, instance):
-        user = self.request.user
-        if not user.is_staff and instance.organizer_id != user.id:
-            raise exceptions.PermissionDenied("Only organizer can delete this event.")
+        self._ensure_organizer_access(instance)
         instance.delete()
 
+    @extend_schema(
+        tags=["Events"],
+        summary="Записаться на мероприятие",
+        description="Создаёт заявку на участие и QR-токен для последующего чекина.",
+        responses={200: ParticipationSerializer, 201: ParticipationSerializer},
+    )
     @action(methods=["post"], detail=True, permission_classes=[IsAuthenticated])
-    @swagger_auto_schema(operation_description="Записаться на мероприятие. Возвращает запись участия и признак created.")
     def register(self, request, pk=None):
+        self._ensure_participant_access()
         event = self.get_object()
         participation, created = register_for_event(event, request.user)
         data = ParticipationSerializer(participation).data
         data["created"] = created
         return Response(data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
 
+    @extend_schema(
+        tags=["Events"],
+        summary="Отметиться по QR",
+        description="Подтверждает присутствие участника на мероприятии по QR-токену.",
+        request=inline_serializer(
+            name="EventCheckInRequest",
+            fields={"qr_token": serializers.CharField()},
+        ),
+        responses={200: ParticipationSerializer},
+    )
     @action(methods=["post"], detail=True, permission_classes=[IsAuthenticated])
-    @swagger_auto_schema(operation_description="Отметиться на мероприятии по QR-токену.")
     def checkin(self, request, pk=None):
+        self._ensure_participant_access()
         qr_token = request.data.get("qr_token")
         if not qr_token:
             return Response(
@@ -217,20 +144,30 @@ class EventViewSet(viewsets.ModelViewSet):
         participation = checkin_for_event(event, request.user, qr_token=qr_token)
         return Response(ParticipationSerializer(participation).data, status=status.HTTP_200_OK)
 
+    @extend_schema(
+        tags=["Events"],
+        summary="Подтвердить участие",
+        description="Организатор или администратор подтверждает участие пользователя и начисляет баллы.",
+        parameters=[
+            OpenApiParameter(
+                name="user_id",
+                location=OpenApiParameter.PATH,
+                required=True,
+                type=int,
+                description="ID участника для подтверждения",
+            )
+        ],
+        responses={200: ParticipationSerializer},
+    )
     @action(
         methods=["post"],
         detail=True,
         url_path=r"confirm/(?P<user_id>[^/.]+)",
         permission_classes=[IsAuthenticated],
     )
-    @swagger_auto_schema(operation_description="Подтвердить участие пользователя организатором.")
     def confirm(self, request, pk=None, user_id=None):
         event = self.get_object()
-        if not request.user.is_staff and event.organizer_id != request.user.id:
-            return Response(
-                {"detail": "Only event organizer can confirm participation."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
+        self._ensure_organizer_access(event)
 
         try:
             participant = User.objects.get(pk=user_id)
@@ -240,72 +177,73 @@ class EventViewSet(viewsets.ModelViewSet):
         participation = confirm_participation(event, participant)
         return Response(ParticipationSerializer(participation).data, status=status.HTTP_200_OK)
 
-    @action(methods=["get"], detail=True, permission_classes=[IsAuthenticated])
-    @swagger_auto_schema(
-        operation_description="Получить список участников мероприятия (с пагинацией и фильтром по дате события).",
-        manual_parameters=[
-            openapi.Parameter("page", openapi.IN_QUERY, description="Номер страницы", type=openapi.TYPE_INTEGER),
-            openapi.Parameter(
-                "page_size",
-                openapi.IN_QUERY,
-                description="Размер страницы (до 100)",
-                type=openapi.TYPE_INTEGER,
-            ),
-            openapi.Parameter(
-                "event_date_from",
-                openapi.IN_QUERY,
-                description="Фильтр по дате события: от (YYYY-MM-DD)",
-                type=openapi.TYPE_STRING,
-            ),
-            openapi.Parameter(
-                "event_date_to",
-                openapi.IN_QUERY,
-                description="Фильтр по дате события: до (YYYY-MM-DD)",
-                type=openapi.TYPE_STRING,
-            ),
-            openapi.Parameter(
-                "ordering",
-                openapi.IN_QUERY,
-                description="Сортировка: created_at, -created_at, event_date, -event_date",
-                type=openapi.TYPE_STRING,
-            ),
-        ],
+    @extend_schema(
+        tags=["Events"],
+        summary="Список участников",
+        description="Регистрации на мероприятие. Доступно организатору события и администратору.",
+        responses={200: ParticipationSerializer(many=True)},
     )
+    @action(methods=["get"], detail=True, permission_classes=[IsAuthenticated])
     def participants(self, request, pk=None):
         event = self.get_object()
-        if not request.user.is_staff and event.organizer_id != request.user.id:
-            return Response(
-                {"detail": "Only event organizer can view participants."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
-        date_from = request.query_params.get("event_date_from")
-        date_to = request.query_params.get("event_date_to")
-        if date_from and str(event.event_date.date()) < date_from:
-            return Response({"count": 0, "next": None, "previous": None, "results": []})
-        if date_to and str(event.event_date.date()) > date_to:
-            return Response({"count": 0, "next": None, "previous": None, "results": []})
-
-        ordering = request.query_params.get("ordering", "-created_at")
-        allowed_ordering = {
-            "created_at": "created_at",
-            "-created_at": "-created_at",
-            "event_date": "event__event_date",
-            "-event_date": "-event__event_date",
-        }
-        queryset = event.participations.select_related("user", "event").order_by(
-            allowed_ordering.get(ordering, "-created_at")
-        )
-
-        paginator = ParticipantsPagination()
-        page = paginator.paginate_queryset(queryset, request, view=self)
+        self._ensure_organizer_access(event)
+        queryset = event.participations.select_related("user").order_by("-created_at")
+        page = self.paginate_queryset(queryset)
         if page is not None:
             serializer = ParticipationSerializer(page, many=True)
-            return paginator.get_paginated_response(serializer.data)
+            return self.get_paginated_response(serializer.data)
         return Response(ParticipationSerializer(queryset, many=True).data)
 
+    @extend_schema(
+        tags=["Events"],
+        summary="Список или создание призов",
+        description="GET — призы мероприятия. POST — добавление приза организатором или администратором.",
+        request=PrizeSerializer,
+        responses={200: PrizeSerializer(many=True), 201: PrizeSerializer},
+    )
+    @extend_schema(
+        tags=["Events"],
+        summary="Моё участие в мероприятии",
+        description="Возвращает участие текущего пользователя в мероприятии, включая QR-токен.",
+        responses={200: ParticipationSerializer, 404: None},
+    )
+    @action(methods=["get"], detail=True, url_path="my-participation", permission_classes=[IsAuthenticated])
+    def my_participation(self, request, pk=None):
+        event = self.get_object()
+        try:
+            participation = event.participations.get(user=request.user)
+            return Response(ParticipationSerializer(participation).data)
+        except Participation.DoesNotExist:
+            return Response({"detail": "Вы не зарегистрированы на это мероприятие."}, status=status.HTTP_404_NOT_FOUND)
+
+    @extend_schema(
+        tags=["Events"],
+        summary="Чекин по QR (организатор)",
+        description="Организатор сканирует QR-код участника и отмечает его присутствие.",
+        request=inline_serializer(
+            name="OrganizerCheckinRequest",
+            fields={"qr_token": serializers.CharField()},
+        ),
+        responses={200: ParticipationSerializer},
+    )
+    @action(methods=["post"], detail=True, url_path="organizer-checkin", permission_classes=[IsAuthenticated])
+    def organizer_checkin(self, request, pk=None):
+        event = self.get_object()
+        self._ensure_organizer_access(event)
+        qr_token = request.data.get("qr_token", "").strip()
+        if not qr_token:
+            return Response({"detail": "qr_token обязателен."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            participation = Participation.objects.get(event=event, qr_token=qr_token)
+        except Participation.DoesNotExist:
+            return Response({"detail": "Неверный QR-код."}, status=status.HTTP_400_BAD_REQUEST)
+        if participation.status in (Participation.Status.CONFIRMED, Participation.Status.REJECTED):
+            return Response({"detail": "Участник уже подтверждён или отклонён."}, status=status.HTTP_400_BAD_REQUEST)
+        participation.mark_checked_in()
+        participation.save(update_fields=["status", "checked_in_at"])
+        return Response(ParticipationSerializer(participation).data, status=status.HTTP_200_OK)
+
     @action(methods=["get", "post"], detail=True, permission_classes=[IsAuthenticatedOrReadOnly])
-    @swagger_auto_schema(operation_description="Получить список призов мероприятия или добавить новый приз.")
     def prizes(self, request, pk=None):
         event = self.get_object()
         if request.method == "GET":
@@ -316,17 +254,18 @@ class EventViewSet(viewsets.ModelViewSet):
                 return self.get_paginated_response(serializer.data)
             return Response(PrizeSerializer(queryset, many=True).data)
 
-        if not request.user.is_staff and event.organizer_id != request.user.id:
-            return Response(
-                {"detail": "Only event organizer can add prizes."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
+        self._ensure_organizer_access(event)
         serializer = PrizeSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save(event=event)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
+@extend_schema(
+    tags=["Events"],
+    summary="Получить приз",
+    description="Детальная информация о призе и связанном мероприятии.",
+)
 class PrizeViewSet(mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     queryset = Prize.objects.select_related("event")
     serializer_class = PrizeSerializer

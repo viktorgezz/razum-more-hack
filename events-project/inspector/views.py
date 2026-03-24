@@ -1,15 +1,16 @@
 from django.contrib.auth import get_user_model
-from django.db.models import Avg, Case, Count, IntegerField, Sum, Value, When
+from django.db.models import Avg, Count, Q, Sum, Value
 from django.db.models.functions import Coalesce
 from django.http import HttpResponse
-from drf_yasg.utils import swagger_auto_schema
-from rest_framework import permissions
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
+from rest_framework import permissions, status
 from rest_framework.generics import GenericAPIView
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from events.models import Participation
 from inspector.filters import apply_candidate_filters
-from inspector.serializers import CandidateListSerializer, CandidateReportMetaSerializer
+from inspector.serializers import CandidateListSerializer
 from inspector.services import generate_candidate_pdf
 
 User = get_user_model()
@@ -17,19 +18,21 @@ User = get_user_model()
 
 class IsInspectorAccess(permissions.BasePermission):
     def has_permission(self, request, view):
-        # Fallback policy until role-based accounts is implemented.
-        return bool(request.user and request.user.is_authenticated and request.user.is_staff)
+        return bool(
+            request.user
+            and request.user.is_authenticated
+            and request.user.role in {User.Role.ADMIN, User.Role.OBSERVER}
+        )
 
 
 def candidates_queryset():
     return (
-        User.objects.annotate(
+        User.objects.filter(role=User.Role.PARTICIPANT).annotate(
             events_count=Count("participations", distinct=True),
             confirmed_count=Count(
-                Case(
-                    When(participations__status=Participation.Status.CONFIRMED, then=1),
-                    output_field=IntegerField(),
-                )
+                "participations",
+                filter=Q(participations__status=Participation.Status.CONFIRMED),
+                distinct=True,
             ),
             total_points=Coalesce(Sum("participations__points_awarded"), Value(0)),
             avg_points=Coalesce(Avg("participations__points_awarded"), Value(0.0)),
@@ -39,11 +42,28 @@ def candidates_queryset():
     )
 
 
+@extend_schema(
+    tags=["Reserve Inspector"],
+    summary="Список кандидатов",
+    description="Участники с расширенной фильтрацией для кадровой службы.",
+    parameters=[
+        OpenApiParameter(name="min_events", required=False, type=int, description="Минимум мероприятий"),
+        OpenApiParameter(name="max_events", required=False, type=int, description="Максимум мероприятий"),
+        OpenApiParameter(name="min_avg_points", required=False, type=float, description="Минимальный средний балл"),
+        OpenApiParameter(name="max_avg_points", required=False, type=float, description="Максимальный средний балл"),
+        OpenApiParameter(
+            name="ordering",
+            required=False,
+            type=str,
+            description="Сортировка: total_points, avg_points, events_count, date_joined и варианты с '-'",
+        ),
+    ],
+    responses={200: CandidateListSerializer(many=True)},
+)
 class CandidateListView(GenericAPIView):
-    permission_classes = (IsInspectorAccess,)
+    permission_classes = (IsAuthenticated, IsInspectorAccess)
     serializer_class = CandidateListSerializer
 
-    @swagger_auto_schema(operation_description="Список кандидатов с фильтрацией и сортировкой для кадрового инспектора.")
     def get(self, request):
         queryset = apply_candidate_filters(candidates_queryset(), request.query_params)
         page = self.paginate_queryset(queryset)
@@ -54,15 +74,22 @@ class CandidateListView(GenericAPIView):
         return Response(serializer.data)
 
 
+@extend_schema(
+    tags=["Reserve Inspector"],
+    summary="PDF-отчёт по кандидату",
+    description="Скачивание PDF со статистикой и последними участиями кандидата.",
+    responses={
+        200: OpenApiResponse(description="PDF-файл отчёта"),
+        404: OpenApiResponse(description="Кандидат не найден"),
+    },
+)
 class CandidateReportView(GenericAPIView):
-    permission_classes = (IsInspectorAccess,)
-    serializer_class = CandidateReportMetaSerializer
+    permission_classes = (IsAuthenticated, IsInspectorAccess)
 
-    @swagger_auto_schema(operation_description="Скачать PDF-отчет по кандидату.")
     def get(self, request, user_id: int):
         candidate = candidates_queryset().filter(id=user_id).first()
         if not candidate:
-            return Response({"detail": "Кандидат не найден."}, status=404)
+            return Response({"detail": "Кандидат не найден."}, status=status.HTTP_404_NOT_FOUND)
 
         participations = (
             Participation.objects.filter(user_id=user_id)

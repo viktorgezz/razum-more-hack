@@ -2,32 +2,56 @@ from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 
-from reportlab.lib.pagesizes import A4
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.pdfgen import canvas
-
 
 def _register_unicode_fonts() -> tuple[str, str]:
-    regular_name = "DejaVuSans"
-    bold_name = "DejaVuSans-Bold"
-    regular_path = Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf")
-    bold_path = Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf")
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
 
-    if regular_path.exists() and regular_name not in pdfmetrics.getRegisteredFontNames():
-        pdfmetrics.registerFont(TTFont(regular_name, str(regular_path)))
-    if bold_path.exists() and bold_name not in pdfmetrics.getRegisteredFontNames():
-        pdfmetrics.registerFont(TTFont(bold_name, str(bold_path)))
+    # Each entry: (regular_path, bold_path_or_None)
+    font_candidates = [
+        (
+            Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+            Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
+        ),
+        (
+            Path("C:/Windows/Fonts/arial.ttf"),
+            Path("C:/Windows/Fonts/arialbd.ttf"),
+        ),
+        (
+            Path("C:/Windows/Fonts/times.ttf"),
+            Path("C:/Windows/Fonts/timesbd.ttf"),
+        ),
+        (
+            Path("C:/Windows/Fonts/calibri.ttf"),
+            Path("C:/Windows/Fonts/calibrib.ttf"),
+        ),
+    ]
 
-    if (
-        regular_name in pdfmetrics.getRegisteredFontNames()
-        and bold_name in pdfmetrics.getRegisteredFontNames()
-    ):
-        return regular_name, bold_name
+    for idx, (regular_path, bold_path) in enumerate(font_candidates):
+        if not regular_path.exists():
+            continue
+
+        reg_name = f"CyrFont{idx}"
+        bold_name = f"CyrFont{idx}-Bold"
+
+        if reg_name not in pdfmetrics.getRegisteredFontNames():
+            pdfmetrics.registerFont(TTFont(reg_name, str(regular_path)))
+
+        if bold_path.exists() and bold_name not in pdfmetrics.getRegisteredFontNames():
+            pdfmetrics.registerFont(TTFont(bold_name, str(bold_path)))
+        elif bold_name not in pdfmetrics.getRegisteredFontNames():
+            # Fallback: use regular as bold
+            pdfmetrics.registerFont(TTFont(bold_name, str(regular_path)))
+
+        return reg_name, bold_name
+
     return "Helvetica", "Helvetica-Bold"
 
 
 def generate_candidate_pdf(candidate, stats: dict, participations) -> bytes:
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+
     buffer = BytesIO()
     pdf = canvas.Canvas(buffer, pagesize=A4)
     regular_font, bold_font = _register_unicode_fonts()

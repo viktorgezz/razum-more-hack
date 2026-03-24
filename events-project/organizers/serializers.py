@@ -22,7 +22,7 @@ class OrganizerReviewSerializer(serializers.ModelSerializer):
             'created_at',
         ]
 
-    def get_reviewer_name(self, obj):
+    def get_reviewer_name(self, obj) -> str:
         return obj.reviewer.get_full_name() or obj.reviewer.username
 
 
@@ -70,7 +70,7 @@ class OrganizerProfileSerializer(serializers.Serializer):
     username = serializers.CharField()
     first_name = serializers.CharField()
     last_name = serializers.CharField()
-    avatar = serializers.ImageField()
+    avatar = serializers.ImageField(allow_null=True, required=False)
     city = serializers.CharField()
     is_verified = serializers.BooleanField()
     events_count = serializers.IntegerField()

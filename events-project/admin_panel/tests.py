@@ -39,7 +39,7 @@ class AdminPanelApiTests(APITestCase):
 
     def test_requires_authentication(self):
         response = self.client.get("/api/admin/organizers/pending/")
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 401)
 
     def test_denies_non_staff(self):
         self.client.force_authenticate(self.regular_user)
@@ -61,11 +61,13 @@ class AdminPanelApiTests(APITestCase):
         self.assertEqual(approve_response.status_code, 200)
         self.pending_user.refresh_from_db()
         self.assertTrue(self.pending_user.is_staff)
+        self.assertEqual(self.pending_user.role, User.Role.ORGANIZER)
 
         reject_response = self.client.post(f"/api/admin/organizers/{self.pending_user.id}/reject/")
         self.assertEqual(reject_response.status_code, 200)
         self.pending_user.refresh_from_db()
         self.assertFalse(self.pending_user.is_staff)
+        self.assertEqual(self.pending_user.role, User.Role.PARTICIPANT)
 
     def test_point_weights_list_and_patch(self):
         self.client.force_authenticate(self.admin_user)

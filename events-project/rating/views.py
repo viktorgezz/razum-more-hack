@@ -1,7 +1,8 @@
-from drf_spectacular.utils import OpenApiParameter, OpenApiExample, extend_schema
+from drf_spectacular.utils import OpenApiParameter, extend_schema, inline_serializer
 from rest_framework.generics import ListAPIView, RetrieveAPIView, UpdateAPIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework import serializers
 from rest_framework.views import APIView
 
 from .models import PointWeight, RatingSnapshot
@@ -14,9 +15,9 @@ MAX_RESULTS = 100
 
 
 @extend_schema(
-    tags=['Рейтинговая система'],
+    tags=['Ratings'],
     summary='Таблица лидеров',
-    description='Возвращает топ-100 участников по рейтингу. Можно фильтровать по направлению.',
+    description='Топ-100 участников по рейтингу с опциональной фильтрацией по направлению.',
     parameters=[
         OpenApiParameter(
             name='category',
@@ -44,9 +45,9 @@ class LeaderboardView(ListAPIView):
 
 
 @extend_schema(
-    tags=['Рейтинговая система'],
+    tags=['Ratings'],
     summary='Рейтинг пользователя',
-    description='Возвращает детальный рейтинг участника по всем направлениям и его место в общем зачёте.',
+    description='Детальный рейтинг участника по направлениям и место в общем зачёте.',
 )
 class UserRatingView(RetrieveAPIView):
     serializer_class = RatingSnapshotSerializer
@@ -56,9 +57,9 @@ class UserRatingView(RetrieveAPIView):
 
 
 @extend_schema(
-    tags=['Рейтинговая система'],
+    tags=['Ratings'],
     summary='Список весов баллов',
-    description='Коэффициенты для разных типов мероприятий, которые используются при расчёте рейтинга.',
+    description='Коэффициенты по типам мероприятий, используемые при расчёте рейтинга.',
 )
 class PointWeightListView(ListAPIView):
     serializer_class = PointWeightSerializer
@@ -67,9 +68,9 @@ class PointWeightListView(ListAPIView):
 
 
 @extend_schema(
-    tags=['Рейтинговая система'],
-    summary='Изменить вес баллов',
-    description='Только для администраторов. Позволяет настроить коэффициент для конкретного типа мероприятия.',
+    tags=['Ratings'],
+    summary='Update point weight',
+    description='Admin-only endpoint to update event type weight.',
 )
 class PointWeightUpdateView(UpdateAPIView):
     serializer_class = PointWeightSerializer
@@ -81,9 +82,19 @@ class PointWeightUpdateView(UpdateAPIView):
 
 
 @extend_schema(
-    tags=['Рейтинговая система'],
+    tags=['Ratings'],
     summary='Принудительный пересчёт рейтинга',
-    description='Только для администраторов. Пересчитывает рейтинг всех участников и обновляет места в таблице.',
+    description='Только для администраторов: пересчёт рейтингов и мест в таблице.',
+    request=None,
+    responses={
+        200: inline_serializer(
+            name='RebuildLeaderboardResponse',
+            fields={
+                'status': serializers.CharField(),
+                'message': serializers.CharField(),
+            },
+        )
+    },
 )
 class RebuildLeaderboardView(APIView):
     permission_classes = [IsAdmin]

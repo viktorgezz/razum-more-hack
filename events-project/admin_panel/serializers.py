@@ -17,6 +17,7 @@ class OrganizerModerationSerializer(serializers.Serializer):
     user_id = serializers.IntegerField()
     is_staff = serializers.BooleanField()
     is_active = serializers.BooleanField()
+    role = serializers.CharField()
 
 
 class PointWeightReadSerializer(serializers.ModelSerializer):
