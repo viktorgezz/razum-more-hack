@@ -1,5 +1,8 @@
+from decimal import Decimal, ROUND_HALF_UP
+
+from django.conf import settings
 from django.db import models
-from accounts.models import User
+from django.utils import timezone
 
 
 class EventCategory(models.Model):
@@ -10,6 +13,7 @@ class EventCategory(models.Model):
     class Meta:
         verbose_name = 'Категория мероприятия'
         verbose_name_plural = 'Категории мероприятий'
+        ordering = ('name',)
 
     def __str__(self):
         return self.name
@@ -21,6 +25,7 @@ class Event(models.Model):
         HACKATHON = 'HACKATHON', 'Хакатон'
         FORUM = 'FORUM', 'Форум'
         VOLUNTEER = 'VOLUNTEER', 'Волонтёрство'
+        OTHER = 'OTHER', 'Другое'
 
     class Status(models.TextChoices):
         DRAFT = 'DRAFT', 'Черновик'
@@ -29,24 +34,33 @@ class Event(models.Model):
         COMPLETED = 'COMPLETED', 'Завершено'
         CANCELLED = 'CANCELLED', 'Отменено'
 
-    organizer = models.ForeignKey(User, on_delete=models.CASCADE, related_name='organized_events')
-    category = models.ForeignKey(EventCategory, on_delete=models.SET_NULL, null=True, blank=True)
+    organizer = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='organized_events'
+    )
+    category = models.ForeignKey(
+        EventCategory, on_delete=models.SET_NULL, null=True, blank=True, related_name='events'
+    )
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     event_date = models.DateTimeField()
     event_type = models.CharField(max_length=20, choices=EventType.choices)
-    difficulty_coef = models.DecimalField(max_digits=3, decimal_places=1, default=1.0)
+    difficulty_coef = models.DecimalField(max_digits=4, decimal_places=2, default=Decimal('1.00'))
     base_points = models.PositiveIntegerField(default=10)
-    max_participants = models.PositiveIntegerField(default=100)
+    max_participants = models.PositiveIntegerField(default=100, null=True, blank=True)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         verbose_name = 'Мероприятие'
         verbose_name_plural = 'Мероприятия'
+        ordering = ('-event_date',)
 
     def __str__(self):
         return self.name
+
+    def calculate_points(self) -> int:
+        value = Decimal(self.base_points) * Decimal(str(self.difficulty_coef))
+        return int(value.quantize(Decimal('1'), rounding=ROUND_HALF_UP))
 
 
 class Prize(models.Model):
@@ -79,7 +93,9 @@ class Participation(models.Model):
         REJECTED = 'REJECTED', 'Отклонён'
 
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='participations')
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='participations')
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='participations'
+    )
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.REGISTERED)
     qr_token = models.CharField(max_length=255, unique=True, blank=True)
     checked_in_at = models.DateTimeField(null=True, blank=True)
@@ -94,3 +110,11 @@ class Participation(models.Model):
 
     def __str__(self):
         return f'{self.user} - {self.event}'
+
+    def mark_checked_in(self):
+        self.status = self.Status.CHECKED_IN
+        self.checked_in_at = timezone.now()
+
+    def mark_confirmed(self):
+        self.status = self.Status.CONFIRMED
+        self.confirmed_at = timezone.now()

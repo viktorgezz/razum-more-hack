@@ -1,0 +1,1098 @@
+openapi: 3.0.3
+info:
+  title: Events Platform API
+  version: 1.0.0
+paths:
+  /api/schema/:
+    get:
+      operationId: schema_retrieve
+      description: |-
+        OpenApi3 schema for this API. Format can be selected via content negotiation.
+
+        - YAML: application/vnd.oai.openapi
+        - JSON: application/vnd.oai.openapi+json
+      parameters:
+      - in: query
+        name: format
+        schema:
+          type: string
+          enum:
+          - json
+          - yaml
+      - in: query
+        name: lang
+        schema:
+          type: string
+          enum:
+          - af
+          - ar
+          - ar-dz
+          - ast
+          - az
+          - be
+          - bg
+          - bn
+          - br
+          - bs
+          - ca
+          - ckb
+          - cs
+          - cy
+          - da
+          - de
+          - dsb
+          - el
+          - en
+          - en-au
+          - en-gb
+          - eo
+          - es
+          - es-ar
+          - es-co
+          - es-mx
+          - es-ni
+          - es-ve
+          - et
+          - eu
+          - fa
+          - fi
+          - fr
+          - fy
+          - ga
+          - gd
+          - gl
+          - he
+          - hi
+          - hr
+          - hsb
+          - hu
+          - hy
+          - ia
+          - id
+          - ig
+          - io
+          - is
+          - it
+          - ja
+          - ka
+          - kab
+          - kk
+          - km
+          - kn
+          - ko
+          - ky
+          - lb
+          - lt
+          - lv
+          - mk
+          - ml
+          - mn
+          - mr
+          - ms
+          - my
+          - nb
+          - ne
+          - nl
+          - nn
+          - os
+          - pa
+          - pl
+          - pt
+          - pt-br
+          - ro
+          - ru
+          - sk
+          - sl
+          - sq
+          - sr
+          - sr-latn
+          - sv
+          - sw
+          - ta
+          - te
+          - tg
+          - th
+          - tk
+          - tr
+          - tt
+          - udm
+          - ug
+          - uk
+          - ur
+          - uz
+          - vi
+          - zh-hans
+          - zh-hant
+      tags:
+      - schema
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/vnd.oai.openapi:
+              schema:
+                type: object
+                additionalProperties: {}
+            application/yaml:
+              schema:
+                type: object
+                additionalProperties: {}
+            application/vnd.oai.openapi+json:
+              schema:
+                type: object
+                additionalProperties: {}
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/v1/events/:
+    get:
+      operationId: v1_events_list
+      description: Возвращает список мероприятий с фильтрацией и сортировкой.
+      summary: Получить список мероприятий
+      parameters:
+      - in: query
+        name: category
+        schema:
+          type: number
+      - in: query
+        name: date_from
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: date_to
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: event_type
+        schema:
+          type: string
+          enum:
+          - FORUM
+          - HACKATHON
+          - LECTURE
+          - VOLUNTEER
+          - WORKSHOP
+        description: |-
+          * `LECTURE` - Lecture
+          * `HACKATHON` - Hackathon
+          * `FORUM` - Forum
+          * `VOLUNTEER` - Volunteer
+          * `WORKSHOP` - Workshop
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - in: query
+        name: organizer_id
+        schema:
+          type: number
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - CANCELLED
+          - COMPLETED
+          - DRAFT
+          - ONGOING
+          - PUBLISHED
+        description: |-
+          * `DRAFT` - Draft
+          * `PUBLISHED` - Published
+          * `ONGOING` - Ongoing
+          * `COMPLETED` - Completed
+          * `CANCELLED` - Cancelled
+      tags:
+      - Мероприятия
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EventRead'
+          description: ''
+    post:
+      operationId: v1_events_create
+      description: Создает новое мероприятие. Доступно организатору или администратору.
+      summary: Создать мероприятие
+      tags:
+      - Мероприятия
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EventWrite'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/EventWrite'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/EventWrite'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventWrite'
+          description: ''
+  /api/v1/events/{id}/:
+    get:
+      operationId: v1_events_retrieve
+      description: Возвращает детальную информацию по выбранному мероприятию.
+      summary: Получить карточку мероприятия
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this event.
+        required: true
+      tags:
+      - Мероприятия
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventRead'
+          description: ''
+    put:
+      operationId: v1_events_update
+      description: Полностью обновляет карточку мероприятия.
+      summary: Обновить мероприятие
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this event.
+        required: true
+      tags:
+      - Мероприятия
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EventWrite'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/EventWrite'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/EventWrite'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventWrite'
+          description: ''
+    patch:
+      operationId: v1_events_partial_update
+      description: Частично обновляет поля карточки мероприятия.
+      summary: Частично обновить мероприятие
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this event.
+        required: true
+      tags:
+      - Мероприятия
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedEventWrite'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedEventWrite'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedEventWrite'
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventWrite'
+          description: ''
+    delete:
+      operationId: v1_events_destroy
+      description: Удаляет мероприятие.
+      summary: Удалить мероприятие
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this event.
+        required: true
+      tags:
+      - Мероприятия
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/events/{id}/checkin/:
+    post:
+      operationId: v1_events_checkin_create
+      description: Проводит check-in участника по QR-токену.
+      summary: Отметиться на мероприятии
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this event.
+        required: true
+      tags:
+      - Мероприятия
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EventCheckin'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/EventCheckin'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/EventCheckin'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventRegisterResponse'
+          description: ''
+  /api/v1/events/{id}/confirm/{user_id}/:
+    post:
+      operationId: v1_events_confirm_create
+      description: Подтверждает участие выбранного участника организатором или администратором.
+      summary: Подтвердить участие
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this event.
+        required: true
+      - in: path
+        name: user_id
+        schema:
+          type: integer
+        description: ID участника
+        required: true
+      tags:
+      - Мероприятия
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventRegisterResponse'
+          description: ''
+  /api/v1/events/{id}/participants/:
+    get:
+      operationId: v1_events_participants_list
+      description: Возвращает список регистраций участников для выбранного мероприятия.
+      summary: Получить список участников мероприятия
+      parameters:
+      - in: query
+        name: category
+        schema:
+          type: number
+      - in: query
+        name: date_from
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: date_to
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: event_type
+        schema:
+          type: string
+          enum:
+          - FORUM
+          - HACKATHON
+          - LECTURE
+          - VOLUNTEER
+          - WORKSHOP
+        description: |-
+          * `LECTURE` - Lecture
+          * `HACKATHON` - Hackathon
+          * `FORUM` - Forum
+          * `VOLUNTEER` - Volunteer
+          * `WORKSHOP` - Workshop
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this event.
+        required: true
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - in: query
+        name: organizer_id
+        schema:
+          type: number
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - CANCELLED
+          - COMPLETED
+          - DRAFT
+          - ONGOING
+          - PUBLISHED
+        description: |-
+          * `DRAFT` - Draft
+          * `PUBLISHED` - Published
+          * `ONGOING` - Ongoing
+          * `COMPLETED` - Completed
+          * `CANCELLED` - Cancelled
+      tags:
+      - Мероприятия
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Participation'
+          description: ''
+  /api/v1/events/{id}/prizes/:
+    get:
+      operationId: v1_events_prizes_list
+      description: GET возвращает призы мероприятия, POST создает новый приз для мероприятия.
+      summary: Получить или добавить призы мероприятия
+      parameters:
+      - in: query
+        name: category
+        schema:
+          type: number
+      - in: query
+        name: date_from
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: date_to
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: event_type
+        schema:
+          type: string
+          enum:
+          - FORUM
+          - HACKATHON
+          - LECTURE
+          - VOLUNTEER
+          - WORKSHOP
+        description: |-
+          * `LECTURE` - Lecture
+          * `HACKATHON` - Hackathon
+          * `FORUM` - Forum
+          * `VOLUNTEER` - Volunteer
+          * `WORKSHOP` - Workshop
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this event.
+        required: true
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - in: query
+        name: organizer_id
+        schema:
+          type: number
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - CANCELLED
+          - COMPLETED
+          - DRAFT
+          - ONGOING
+          - PUBLISHED
+        description: |-
+          * `DRAFT` - Draft
+          * `PUBLISHED` - Published
+          * `ONGOING` - Ongoing
+          * `COMPLETED` - Completed
+          * `CANCELLED` - Cancelled
+      tags:
+      - Мероприятия
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Prize'
+          description: ''
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prize'
+          description: ''
+    post:
+      operationId: v1_events_prizes_create
+      description: GET возвращает призы мероприятия, POST создает новый приз для мероприятия.
+      summary: Получить или добавить призы мероприятия
+      parameters:
+      - in: query
+        name: category
+        schema:
+          type: number
+      - in: query
+        name: date_from
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: date_to
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: event_type
+        schema:
+          type: string
+          enum:
+          - FORUM
+          - HACKATHON
+          - LECTURE
+          - VOLUNTEER
+          - WORKSHOP
+        description: |-
+          * `LECTURE` - Lecture
+          * `HACKATHON` - Hackathon
+          * `FORUM` - Forum
+          * `VOLUNTEER` - Volunteer
+          * `WORKSHOP` - Workshop
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this event.
+        required: true
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - in: query
+        name: organizer_id
+        schema:
+          type: number
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - CANCELLED
+          - COMPLETED
+          - DRAFT
+          - ONGOING
+          - PUBLISHED
+        description: |-
+          * `DRAFT` - Draft
+          * `PUBLISHED` - Published
+          * `ONGOING` - Ongoing
+          * `COMPLETED` - Completed
+          * `CANCELLED` - Cancelled
+      tags:
+      - Мероприятия
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Prize'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Prize'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Prize'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Prize'
+          description: ''
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prize'
+          description: ''
+  /api/v1/events/{id}/register/:
+    post:
+      operationId: v1_events_register_create
+      description: Регистрирует текущего участника на выбранное мероприятие и выдает
+        QR-токен.
+      summary: Записаться на мероприятие
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this event.
+        required: true
+      tags:
+      - Мероприятия
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventRegisterResponse'
+          description: ''
+        '400':
+          description: Ошибка валидации
+components:
+  schemas:
+    EventCategory:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 100
+        slug:
+          type: string
+          maxLength: 100
+          pattern: ^[-a-zA-Z0-9_]+$
+        description:
+          type: string
+      required:
+      - id
+      - name
+      - slug
+    EventCheckin:
+      type: object
+      properties:
+        qr_token:
+          type: string
+      required:
+      - qr_token
+    EventRead:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        organizer:
+          type: integer
+        category:
+          allOf:
+          - $ref: '#/components/schemas/EventCategory'
+          readOnly: true
+        name:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+        event_date:
+          type: string
+          format: date-time
+        event_type:
+          $ref: '#/components/schemas/EventTypeEnum'
+        difficulty_coef:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,1}(?:\.\d{0,2})?$
+        base_points:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 1
+          format: int64
+        max_participants:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 1
+          format: int64
+        status:
+          $ref: '#/components/schemas/EventStatusEnum'
+        participants_count:
+          type: integer
+          readOnly: true
+        prizes:
+          type: array
+          items:
+            $ref: '#/components/schemas/Prize'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - base_points
+      - category
+      - created_at
+      - difficulty_coef
+      - event_date
+      - event_type
+      - id
+      - max_participants
+      - name
+      - organizer
+      - participants_count
+      - prizes
+      - updated_at
+    EventRegisterResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        event:
+          type: integer
+          readOnly: true
+        user:
+          type: integer
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/ParticipationStatusEnum'
+          readOnly: true
+        qr_token:
+          type: string
+          readOnly: true
+          nullable: true
+        points_awarded:
+          type: integer
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - event
+      - id
+      - points_awarded
+      - qr_token
+      - status
+      - user
+    EventStatusEnum:
+      enum:
+      - DRAFT
+      - PUBLISHED
+      - ONGOING
+      - COMPLETED
+      - CANCELLED
+      type: string
+      description: |-
+        * `DRAFT` - Draft
+        * `PUBLISHED` - Published
+        * `ONGOING` - Ongoing
+        * `COMPLETED` - Completed
+        * `CANCELLED` - Cancelled
+    EventTypeEnum:
+      enum:
+      - LECTURE
+      - HACKATHON
+      - FORUM
+      - VOLUNTEER
+      - WORKSHOP
+      type: string
+      description: |-
+        * `LECTURE` - Lecture
+        * `HACKATHON` - Hackathon
+        * `FORUM` - Forum
+        * `VOLUNTEER` - Volunteer
+        * `WORKSHOP` - Workshop
+    EventWrite:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        organizer:
+          type: integer
+          readOnly: true
+        category:
+          type: integer
+        name:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+        event_date:
+          type: string
+          format: date-time
+        event_type:
+          $ref: '#/components/schemas/EventTypeEnum'
+        difficulty_coef:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,1}(?:\.\d{0,2})?$
+        base_points:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 1
+          format: int64
+        max_participants:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 1
+          format: int64
+        status:
+          $ref: '#/components/schemas/EventStatusEnum'
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - base_points
+      - category
+      - created_at
+      - difficulty_coef
+      - event_date
+      - event_type
+      - id
+      - max_participants
+      - name
+      - organizer
+      - updated_at
+    Participation:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        event:
+          type: integer
+          readOnly: true
+        user:
+          type: integer
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/ParticipationStatusEnum'
+          readOnly: true
+        checked_in_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        confirmed_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        points_awarded:
+          type: integer
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - checked_in_at
+      - confirmed_at
+      - created_at
+      - event
+      - id
+      - points_awarded
+      - status
+      - user
+    ParticipationStatusEnum:
+      enum:
+      - REGISTERED
+      - CHECKED_IN
+      - CONFIRMED
+      - REJECTED
+      type: string
+      description: |-
+        * `REGISTERED` - Registered
+        * `CHECKED_IN` - Checked In
+        * `CONFIRMED` - Confirmed
+        * `REJECTED` - Rejected
+    PatchedEventWrite:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        organizer:
+          type: integer
+          readOnly: true
+        category:
+          type: integer
+        name:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+        event_date:
+          type: string
+          format: date-time
+        event_type:
+          $ref: '#/components/schemas/EventTypeEnum'
+        difficulty_coef:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,1}(?:\.\d{0,2})?$
+        base_points:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 1
+          format: int64
+        max_participants:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 1
+          format: int64
+        status:
+          $ref: '#/components/schemas/EventStatusEnum'
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    Prize:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        event:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+        prize_type:
+          $ref: '#/components/schemas/PrizeTypeEnum'
+        quantity:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 1
+          format: int64
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - event
+      - id
+      - name
+      - prize_type
+      - quantity
+    PrizeTypeEnum:
+      enum:
+      - MERCH
+      - TICKETS
+      - INTERNSHIP
+      - GRANT
+      - MEETING
+      type: string
+      description: |-
+        * `MERCH` - Merch
+        * `TICKETS` - Tickets
+        * `INTERNSHIP` - Internship
+        * `GRANT` - Grant
+        * `MEETING` - Meeting
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sessionid

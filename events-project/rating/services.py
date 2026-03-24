@@ -61,6 +61,12 @@ def calculate_user_rating(user_id):
     return totals
 
 
+def recalculate_user_rating(user_id):
+    """Integration point: recalculate and return user_id (used by events/inspector)."""
+    update_user_snapshot(user_id)
+    return user_id
+
+
 def update_user_snapshot(user_id):
     """Calculate rating and update_or_create the user's RatingSnapshot."""
     totals = calculate_user_rating(user_id)
