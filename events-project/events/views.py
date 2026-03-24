@@ -201,6 +201,48 @@ class EventViewSet(viewsets.ModelViewSet):
         request=PrizeSerializer,
         responses={200: PrizeSerializer(many=True), 201: PrizeSerializer},
     )
+    @extend_schema(
+        tags=["Events"],
+        summary="Моё участие в мероприятии",
+        description="Возвращает участие текущего пользователя в мероприятии, включая QR-токен.",
+        responses={200: ParticipationSerializer, 404: None},
+    )
+    @action(methods=["get"], detail=True, url_path="my-participation", permission_classes=[IsAuthenticated])
+    def my_participation(self, request, pk=None):
+        event = self.get_object()
+        try:
+            participation = event.participations.get(user=request.user)
+            return Response(ParticipationSerializer(participation).data)
+        except Participation.DoesNotExist:
+            return Response({"detail": "Вы не зарегистрированы на это мероприятие."}, status=status.HTTP_404_NOT_FOUND)
+
+    @extend_schema(
+        tags=["Events"],
+        summary="Чекин по QR (организатор)",
+        description="Организатор сканирует QR-код участника и отмечает его присутствие.",
+        request=inline_serializer(
+            name="OrganizerCheckinRequest",
+            fields={"qr_token": serializers.CharField()},
+        ),
+        responses={200: ParticipationSerializer},
+    )
+    @action(methods=["post"], detail=True, url_path="organizer-checkin", permission_classes=[IsAuthenticated])
+    def organizer_checkin(self, request, pk=None):
+        event = self.get_object()
+        self._ensure_organizer_access(event)
+        qr_token = request.data.get("qr_token", "").strip()
+        if not qr_token:
+            return Response({"detail": "qr_token обязателен."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            participation = Participation.objects.get(event=event, qr_token=qr_token)
+        except Participation.DoesNotExist:
+            return Response({"detail": "Неверный QR-код."}, status=status.HTTP_400_BAD_REQUEST)
+        if participation.status in (Participation.Status.CONFIRMED, Participation.Status.REJECTED):
+            return Response({"detail": "Участник уже подтверждён или отклонён."}, status=status.HTTP_400_BAD_REQUEST)
+        participation.mark_checked_in()
+        participation.save(update_fields=["status", "checked_in_at"])
+        return Response(ParticipationSerializer(participation).data, status=status.HTTP_200_OK)
+
     @action(methods=["get", "post"], detail=True, permission_classes=[IsAuthenticatedOrReadOnly])
     def prizes(self, request, pk=None):
         event = self.get_object()
