@@ -1,10 +1,10 @@
 from django.urls import path
 
-from accounts.views import LoginView, MeView, RefreshView, RegisterView
+from accounts.views import JWTTokenObtainPairView, JWTTokenRefreshView, MeView, RegisterView
 
 urlpatterns = [
     path("register/", RegisterView.as_view(), name="auth-register"),
-    path("login/", LoginView.as_view(), name="auth-login"),
-    path("refresh/", RefreshView.as_view(), name="auth-refresh"),
+    path("login/", JWTTokenObtainPairView.as_view(), name="auth-login"),
+    path("refresh/", JWTTokenRefreshView.as_view(), name="auth-refresh"),
     path("me/", MeView.as_view(), name="auth-me"),
 ]

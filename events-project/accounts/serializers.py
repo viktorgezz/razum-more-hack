@@ -5,6 +5,12 @@ from rest_framework import serializers
 User = get_user_model()
 
 
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ("id", "username", "first_name", "last_name", "email", "city", "role", "is_verified", "points", "total_events")
+        read_only_fields = fields
+
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(
         write_only=True, required=True, validators=[validate_password]
