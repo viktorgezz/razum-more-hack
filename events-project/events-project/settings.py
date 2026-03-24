@@ -10,22 +10,40 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
+import os
+import sys
 from pathlib import Path
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
+
+load_dotenv(BASE_DIR / ".env")
+
+
+def env_bool(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-5bxo(&$2#=3=z-j7r2%jt_4_d$s%zrnrxp+zu#9mr0_%tsn%zy'
+SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-change-me")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = env_bool("DEBUG", True)
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1,testserver").split(",")
+    if host.strip()
+]
 
 
 # Application definition
@@ -37,6 +55,15 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'rest_framework',
+    'drf_spectacular',
+
+    'accounts',
+    'events',
+    'rating',
+    'organizers',
+    'inspector',
+    'admin_panel',
 ]
 
 MIDDLEWARE = [
@@ -47,6 +74,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'debug_logging_middleware.DebugRequestLogMiddleware',
 ]
 
 ROOT_URLCONF = 'urls'
@@ -73,12 +101,26 @@ WSGI_APPLICATION = 'wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+DB_ENGINE = os.getenv("DB_ENGINE", "sqlite").strip().lower()
+
+if DB_ENGINE == "postgres":
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": os.getenv("DB_NAME", "events_db"),
+            "USER": os.getenv("DB_USER", "events_user"),
+            "PASSWORD": os.getenv("DB_PASSWORD", ""),
+            "HOST": os.getenv("DB_HOST", "localhost"),
+            "PORT": os.getenv("DB_PORT", "5432"),
+        }
     }
-}
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
 
 
 # Password validation
@@ -121,3 +163,54 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+AUTH_USER_MODEL = 'accounts.User'
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 20,
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Платформа рейтинга активности молодёжного парламента',
+    'DESCRIPTION': '''
+## О проекте
+Веб-платформа для автоматизации учёта активности участников молодёжного парламента и формирования прозрачного рейтинга кандидатов.
+## Роли пользователей
+- **ORGANIZER** — создаёт мероприятия, верифицирует участие
+- **PARTICIPANT** — участвует в мероприятиях, копит баллы
+- **OBSERVER** — просматривает рейтинг, отбирает кандидатов
+- **ADMIN** — управляет платформой, настраивает веса баллов
+## Аутентификация
+Все эндпоинты требуют JWT-токен в заголовке:
+`Authorization: Bearer <token>`
+    ''',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'TAGS': [
+        {
+            'name': 'Рейтинговая система',
+            'description': (
+                'Расчёт рейтинга участников, таблица лидеров и настройка весов баллов. '
+                'Рейтинг считается по формуле: сумма(баллы × коэффициент_сложности × вес_типа). '
+                'Поддерживается фильтрация по направлениям: IT, Социальное проектирование, Медиа.'
+            ),
+        },
+        {
+            'name': 'Профиль организатора',
+            'description': (
+                'Публичные страницы организаторов, их мероприятия и система отзывов. '
+                'Рейтинг доверия организатора рассчитывается как среднее оценок от участников. '
+                'Оставить отзыв может только участник с подтверждённым участием в мероприятии.'
+            ),
+        },
+    ],
+}
