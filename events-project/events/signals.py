@@ -1,24 +1,13 @@
-from django.db.models.signals import pre_save
+from django.db.models.signals import post_save
 from django.dispatch import receiver
 
-from .models import Participation
+from events.models import Participation
 
 
-@receiver(pre_save, sender=Participation)
-def trigger_rating_recalculation_on_confirm(sender, instance: Participation, **kwargs):
-    if not instance.pk:
+@receiver(post_save, sender=Participation)
+def participation_confirmed_handler(sender, instance: Participation, created, **kwargs):
+    # Hook for ratings recalculation integration on confirmation.
+    if created:
         return
-
-    previous = sender.objects.filter(pk=instance.pk).only("status").first()
-    if not previous:
-        return
-
-    if previous.status == Participation.Status.CONFIRMED:
-        return
-
     if instance.status == Participation.Status.CONFIRMED:
-        try:
-            from rating.services import recalculate_user_rating
-        except Exception:
-            return
-        recalculate_user_rating(user_id=instance.user_id)
+        return

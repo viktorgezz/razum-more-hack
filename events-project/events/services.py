@@ -1,82 +1,83 @@
 import secrets
 
-from django.db import IntegrityError, transaction
+from django.db import transaction
 from django.utils import timezone
-from rest_framework.exceptions import PermissionDenied
-from rest_framework.exceptions import ValidationError as DRFValidationError
+from rest_framework import exceptions
 
-from .models import Event, Participation
-
-
-def _is_admin(user) -> bool:
-    return getattr(user, "is_superuser", False) or getattr(user, "role", None) == "ADMIN"
-
-
-def _is_participant(user) -> bool:
-    role = getattr(user, "role", None)
-    return role in (None, "PARTICIPANT")
+from events.models import Event, Participation
 
 
 def generate_qr_token() -> str:
-    return secrets.token_urlsafe(32)
+    return secrets.token_urlsafe(24)
 
 
 @transaction.atomic
-def register_participant(event: Event, user) -> Participation:
-    if not _is_participant(user):
-        raise PermissionDenied("Only participants can register for events.")
+def register_for_event(event: Event, user):
+    if event.status in (Event.Status.CANCELLED, Event.Status.COMPLETED):
+        raise exceptions.ValidationError("Registration is closed for this event.")
 
-    if event.status not in (Event.Status.PUBLISHED, Event.Status.ONGOING):
-        raise DRFValidationError("Registration is available only for published or ongoing events.")
+    if event.max_participants:
+        current_count = event.participations.exclude(
+            status=Participation.Status.REJECTED
+        ).count()
+        if current_count >= event.max_participants:
+            raise exceptions.ValidationError("No slots left for this event.")
 
-    current_count = Participation.objects.select_for_update().filter(event=event).count()
-    if current_count >= event.max_participants:
-        raise DRFValidationError("Maximum participants limit reached.")
-
-    try:
-        participation = Participation.objects.create(
-            event=event,
-            user=user,
-            qr_token=generate_qr_token(),
+    participation, created = Participation.objects.get_or_create(
+        event=event,
+        user=user,
+        defaults={"qr_token": generate_qr_token()},
+    )
+    if not created and participation.status == Participation.Status.REJECTED:
+        participation.status = Participation.Status.REGISTERED
+        participation.qr_token = generate_qr_token()
+        participation.checked_in_at = None
+        participation.confirmed_at = None
+        participation.points_awarded = 0
+        participation.save(
+            update_fields=[
+                "status",
+                "qr_token",
+                "checked_in_at",
+                "confirmed_at",
+                "points_awarded",
+            ]
         )
-    except IntegrityError as exc:
-        raise DRFValidationError("User is already registered for this event.") from exc
 
-    return participation
+    return participation, created
 
 
 @transaction.atomic
-def checkin_participant(event: Event, user, qr_token: str) -> Participation:
-    participation = Participation.objects.select_for_update().get(event=event, user=user)
+def checkin_for_event(event: Event, user, qr_token: str) -> Participation:
+    try:
+        participation = Participation.objects.select_for_update().get(event=event, user=user)
+    except Participation.DoesNotExist as exc:
+        raise exceptions.NotFound("You are not registered for this event.") from exc
 
     if participation.qr_token != qr_token:
-        raise DRFValidationError("Invalid QR token.")
+        raise exceptions.ValidationError("Invalid QR token.")
 
     if participation.status in (Participation.Status.CONFIRMED, Participation.Status.REJECTED):
-        raise DRFValidationError("Participation is already finalized.")
+        raise exceptions.ValidationError("Participation cannot be checked in.")
 
     participation.status = Participation.Status.CHECKED_IN
     participation.checked_in_at = timezone.now()
-    participation.save(update_fields=["status", "checked_in_at", "updated_at"])
+    participation.save(update_fields=["status", "checked_in_at"])
     return participation
 
 
 @transaction.atomic
-def confirm_participation(event: Event, participant_user, actor) -> Participation:
-    is_owner = event.organizer_id == getattr(actor, "id", None)
-    if not (is_owner or _is_admin(actor)):
-        raise PermissionDenied("Only event organizer or admin can confirm participation.")
+def confirm_participation(event: Event, user) -> Participation:
+    try:
+        participation = Participation.objects.select_for_update().get(event=event, user=user)
+    except Participation.DoesNotExist as exc:
+        raise exceptions.NotFound("Participation not found.") from exc
 
-    participation = Participation.objects.select_for_update().get(event=event, user=participant_user)
-
-    if participation.status == Participation.Status.CONFIRMED:
-        raise DRFValidationError("Participation is already confirmed.")
-
-    if participation.status != Participation.Status.CHECKED_IN:
-        raise DRFValidationError("Participant must check in before confirmation.")
+    if participation.status not in (Participation.Status.CHECKED_IN, Participation.Status.REGISTERED):
+        raise exceptions.ValidationError("Only registered/checked-in users can be confirmed.")
 
     participation.status = Participation.Status.CONFIRMED
     participation.confirmed_at = timezone.now()
-    participation.points_awarded = event.base_points
-    participation.save(update_fields=["status", "confirmed_at", "points_awarded", "updated_at"])
+    participation.points_awarded = event.calculate_points()
+    participation.save(update_fields=["status", "confirmed_at", "points_awarded"])
     return participation

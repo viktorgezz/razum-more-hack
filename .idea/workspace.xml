@@ -4,7 +4,28 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="7251e11e-73fd-47f8-aac9-346618c62216" name="Changes" comment="-" />
+    <list default="true" id="7251e11e-73fd-47f8-aac9-346618c62216" name="Changes" comment="-">
+      <change beforePath="$PROJECT_DIR$/events-project/db.sqlite3" beforeDir="false" afterPath="$PROJECT_DIR$/events-project/db.sqlite3" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/events-project/events-project/asgi.py" beforeDir="false" afterPath="$PROJECT_DIR$/events-project/events-project/asgi.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/events-project/events-project/settings.py" beforeDir="false" afterPath="$PROJECT_DIR$/events-project/events-project/settings.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/events-project/events-project/urls.py" beforeDir="false" afterPath="$PROJECT_DIR$/events-project/events-project/urls.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/events-project/events-project/wsgi.py" beforeDir="false" afterPath="$PROJECT_DIR$/events-project/events-project/wsgi.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/events-project/events/__init__.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/events-project/events/admin.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/events-project/events/apps.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/events-project/events/filters.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/events-project/events/migrations/0001_initial.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/events-project/events/migrations/__init__.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/events-project/events/models.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/events-project/events/serializers.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/events-project/events/services.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/events-project/events/signals.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/events-project/events/tests.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/events-project/events/urls.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/events-project/events/views.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/events-project/inspector/tests.py" beforeDir="false" afterPath="$PROJECT_DIR$/events-project/inspector/tests.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/events-project/inspector/views.py" beforeDir="false" afterPath="$PROJECT_DIR$/events-project/inspector/views.py" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -18,21 +39,21 @@
     </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
-  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
-  "lastFilter": {
-    "state": "OPEN",
-    "assignee": "danlylacov"
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;danlylacov&quot;
   }
-}]]></component>
-  <component name="GithubPullRequestsUISettings"><![CDATA[{
-  "selectedUrlAndAccountId": {
-    "url": "https://github.com/viktorgezz/razum-more-hack.git",
-    "accountId": "1614e334-e940-4de2-8ffa-45944ba7c63b"
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/viktorgezz/razum-more-hack.git&quot;,
+    &quot;accountId&quot;: &quot;1614e334-e940-4de2-8ffa-45944ba7c63b&quot;
   }
-}]]></component>
-  <component name="ProjectColorInfo"><![CDATA[{
-  "associatedIndex": 7
-}]]></component>
+}</component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 7
+}</component>
   <component name="ProjectId" id="3BO4VbBJR6zLXX4gpHcfmRwiyN8" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
@@ -43,6 +64,7 @@
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
     "RunOnceActivity.git.unshallow": "true",
+    "git-widget-placeholder": "dev-dan",
     "last_opened_file_path": "/home/daniil/Рабочий стол/учеба/razum-more-hacke"
   }
 }]]></component>
@@ -75,5 +97,15 @@
   <component name="VcsManagerConfiguration">
     <MESSAGE value="-" />
     <option name="LAST_COMMIT_MESSAGE" value="-" />
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/events-project/events/filters.py</url>
+          <option name="timeStamp" value="1" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
   </component>
 </project>
