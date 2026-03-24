@@ -1,0 +1,18 @@
+spring:
+  application:
+    name: sercurity
+  datasource:
+    url: jdbc:postgresql://${POSTGRESQL_HOST:localhost}:${PO  STGRESQL_PORT:5433}/${POSTGRESQL_DB:temp_db}
+    username: ${POSTGRESQL_USERNAME:postgres}
+    password: ${POSTGRESQL_PASSWORD:strong_password}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+security:
+  jwt:
+    access-expiration-ms: 900000
+    refresh-expiration-ms: 6000000
+  origin-fronted: ${SECURITY_ORIGIN_FRONTED:http://localhost:5173}
