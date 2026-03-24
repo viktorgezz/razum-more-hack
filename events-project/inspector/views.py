@@ -9,7 +9,7 @@ from rest_framework.response import Response
 
 from events.models import Participation
 from inspector.filters import apply_candidate_filters
-from inspector.serializers import CandidateListSerializer
+from inspector.serializers import CandidateListSerializer, CandidateReportMetaSerializer
 from inspector.services import generate_candidate_pdf
 
 User = get_user_model()
@@ -24,15 +24,15 @@ class IsInspectorAccess(permissions.BasePermission):
 def candidates_queryset():
     return (
         User.objects.annotate(
-            events_count=Count("event_participations", distinct=True),
+            events_count=Count("participations", distinct=True),
             confirmed_count=Count(
                 Case(
-                    When(event_participations__status=Participation.Status.CONFIRMED, then=1),
+                    When(participations__status=Participation.Status.CONFIRMED, then=1),
                     output_field=IntegerField(),
                 )
             ),
-            total_points=Coalesce(Sum("event_participations__points_awarded"), Value(0)),
-            avg_points=Coalesce(Avg("event_participations__points_awarded"), Value(0.0)),
+            total_points=Coalesce(Sum("participations__points_awarded"), Value(0)),
+            avg_points=Coalesce(Avg("participations__points_awarded"), Value(0.0)),
         )
         .filter(events_count__gt=0)
         .distinct()
@@ -56,6 +56,7 @@ class CandidateListView(GenericAPIView):
 
 class CandidateReportView(GenericAPIView):
     permission_classes = (IsInspectorAccess,)
+    serializer_class = CandidateReportMetaSerializer
 
     @swagger_auto_schema(operation_description="Скачать PDF-отчет по кандидату.")
     def get(self, request, user_id: int):
