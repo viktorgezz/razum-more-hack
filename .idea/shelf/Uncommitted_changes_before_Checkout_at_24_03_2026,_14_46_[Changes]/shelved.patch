@@ -1,0 +1,593 @@
+Index: events-project/events/models.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>from django.db import models\n\n# Create your models here.\n
+===================================================================
+diff --git a/events-project/events/models.py b/events-project/events/models.py
+--- a/events-project/events/models.py	(revision 16df52b608e118d287a3d7f6e17f6e9134ba5e2b)
++++ b/events-project/events/models.py	(date 1774351138683)
+@@ -1,3 +1,120 @@
++from decimal import Decimal
++
++from django.conf import settings
++from django.core.validators import MaxValueValidator, MinValueValidator
+ from django.db import models
+ 
+-# Create your models here.
++
++class TimestampedModel(models.Model):
++    created_at = models.DateTimeField(auto_now_add=True)
++    updated_at = models.DateTimeField(auto_now=True)
++
++    class Meta:
++        abstract = True
++
++
++class EventCategory(TimestampedModel):
++    name = models.CharField(max_length=100, unique=True)
++    slug = models.SlugField(max_length=100, unique=True)
++    description = models.TextField(blank=True)
++
++    class Meta:
++        ordering = ["name"]
++
++    def __str__(self) -> str:
++        return self.name
++
++
++class Event(TimestampedModel):
++    class EventType(models.TextChoices):
++        LECTURE = "LECTURE", "Lecture"
++        HACKATHON = "HACKATHON", "Hackathon"
++        FORUM = "FORUM", "Forum"
++        VOLUNTEER = "VOLUNTEER", "Volunteer"
++        WORKSHOP = "WORKSHOP", "Workshop"
++
++    class Status(models.TextChoices):
++        DRAFT = "DRAFT", "Draft"
++        PUBLISHED = "PUBLISHED", "Published"
++        ONGOING = "ONGOING", "Ongoing"
++        COMPLETED = "COMPLETED", "Completed"
++        CANCELLED = "CANCELLED", "Cancelled"
++
++    organizer = models.ForeignKey(
++        settings.AUTH_USER_MODEL,
++        on_delete=models.CASCADE,
++        related_name="organized_events",
++    )
++    category = models.ForeignKey(
++        EventCategory,
++        on_delete=models.PROTECT,
++        related_name="events",
++    )
++    name = models.CharField(max_length=255)
++    description = models.TextField(blank=True)
++    event_date = models.DateTimeField()
++    event_type = models.CharField(max_length=20, choices=EventType.choices)
++    difficulty_coef = models.DecimalField(
++        max_digits=3,
++        decimal_places=2,
++        validators=[MinValueValidator(Decimal("1.0")), MaxValueValidator(Decimal("3.0"))],
++    )
++    base_points = models.PositiveIntegerField(validators=[MinValueValidator(1)])
++    max_participants = models.PositiveIntegerField(validators=[MinValueValidator(1)])
++    status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
++
++    class Meta:
++        ordering = ["-event_date", "-created_at"]
++
++    def __str__(self) -> str:
++        return self.name
++
++
++class Prize(TimestampedModel):
++    class PrizeType(models.TextChoices):
++        MERCH = "MERCH", "Merch"
++        TICKETS = "TICKETS", "Tickets"
++        INTERNSHIP = "INTERNSHIP", "Internship"
++        GRANT = "GRANT", "Grant"
++        MEETING = "MEETING", "Meeting"
++
++    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="prizes")
++    name = models.CharField(max_length=255)
++    description = models.TextField(blank=True)
++    prize_type = models.CharField(max_length=20, choices=PrizeType.choices)
++    quantity = models.PositiveIntegerField(validators=[MinValueValidator(1)])
++
++    class Meta:
++        ordering = ["name"]
++
++    def __str__(self) -> str:
++        return f"{self.name} ({self.event.name})"
++
++
++class Participation(TimestampedModel):
++    class Status(models.TextChoices):
++        REGISTERED = "REGISTERED", "Registered"
++        CHECKED_IN = "CHECKED_IN", "Checked In"
++        CONFIRMED = "CONFIRMED", "Confirmed"
++        REJECTED = "REJECTED", "Rejected"
++
++    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="participations")
++    user = models.ForeignKey(
++        settings.AUTH_USER_MODEL,
++        on_delete=models.CASCADE,
++        related_name="event_participations",
++    )
++    status = models.CharField(max_length=20, choices=Status.choices, default=Status.REGISTERED)
++    qr_token = models.CharField(max_length=128, unique=True, null=True, blank=True)
++    checked_in_at = models.DateTimeField(null=True, blank=True)
++    confirmed_at = models.DateTimeField(null=True, blank=True)
++    points_awarded = models.PositiveIntegerField(default=0)
++
++    class Meta:
++        constraints = [
++            models.UniqueConstraint(fields=["event", "user"], name="unique_event_user_participation")
++        ]
++        ordering = ["-created_at"]
++
++    def __str__(self) -> str:
++        return f"{self.user_id}:{self.event_id}:{self.status}"
+Index: events-project/events/tests.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>from django.test import TestCase\n\n# Create your tests here.\n
+===================================================================
+diff --git a/events-project/events/tests.py b/events-project/events/tests.py
+--- a/events-project/events/tests.py	(revision 16df52b608e118d287a3d7f6e17f6e9134ba5e2b)
++++ b/events-project/events/tests.py	(date 1774350469600)
+@@ -1,3 +1,114 @@
+-from django.test import TestCase
++from datetime import timedelta
++
++from django.contrib.auth import get_user_model
++from django.db import IntegrityError
++from django.urls import reverse
++from django.utils import timezone
++from rest_framework import status
++from rest_framework.test import APITestCase
++
++from .models import Event, EventCategory, Participation
++
+ 
+-# Create your tests here.
++class EventModelTests(APITestCase):
++    def setUp(self):
++        user_model = get_user_model()
++        self.organizer = user_model.objects.create_user(username="organizer", password="pwd12345")
++        self.participant = user_model.objects.create_user(username="participant", password="pwd12345")
++        self.category = EventCategory.objects.create(name="IT", slug="it")
++        self.event = Event.objects.create(
++            organizer=self.organizer,
++            category=self.category,
++            name="Test Event",
++            event_date=timezone.now() + timedelta(days=1),
++            event_type=Event.EventType.LECTURE,
++            difficulty_coef=1.5,
++            base_points=10,
++            max_participants=50,
++            status=Event.Status.PUBLISHED,
++        )
++
++    def test_participation_unique_constraint(self):
++        Participation.objects.create(event=self.event, user=self.participant, qr_token="a")
++        with self.assertRaises(IntegrityError):
++            Participation.objects.create(event=self.event, user=self.participant, qr_token="b")
++
++
++class EventApiTests(APITestCase):
++    def setUp(self):
++        user_model = get_user_model()
++        self.organizer = user_model.objects.create_user(username="org", password="pwd12345")
++        self.participant = user_model.objects.create_user(username="part", password="pwd12345")
++        self.other_user = user_model.objects.create_user(username="other", password="pwd12345")
++        self.category = EventCategory.objects.create(name="Media", slug="media")
++        self.event = Event.objects.create(
++            organizer=self.organizer,
++            category=self.category,
++            name="Media Meetup",
++            event_date=timezone.now() + timedelta(days=2),
++            event_type=Event.EventType.FORUM,
++            difficulty_coef=1.2,
++            base_points=20,
++            max_participants=2,
++            status=Event.Status.PUBLISHED,
++        )
++
++    def test_events_list_requires_auth(self):
++        url = reverse("events-list")
++        response = self.client.get(url)
++        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
++
++    def test_register_checkin_confirm_flow(self):
++        self.client.force_authenticate(self.participant)
++        register_url = reverse("events-register", kwargs={"pk": self.event.pk})
++        register_response = self.client.post(register_url)
++        self.assertEqual(register_response.status_code, status.HTTP_201_CREATED)
++        qr_token = register_response.data["qr_token"]
++
++        checkin_url = reverse("events-checkin", kwargs={"pk": self.event.pk})
++        checkin_response = self.client.post(checkin_url, {"qr_token": qr_token}, format="json")
++        self.assertEqual(checkin_response.status_code, status.HTTP_200_OK)
++
++        self.client.force_authenticate(self.organizer)
++        confirm_url = reverse(
++            "events-confirm",
++            kwargs={"pk": self.event.pk, "user_id": self.participant.pk},
++        )
++        confirm_response = self.client.post(confirm_url)
++        self.assertEqual(confirm_response.status_code, status.HTTP_200_OK)
++        self.assertEqual(confirm_response.data["status"], Participation.Status.CONFIRMED)
++        self.assertEqual(confirm_response.data["points_awarded"], 20)
++
++    def test_confirm_without_checkin_is_rejected(self):
++        participation = Participation.objects.create(
++            event=self.event, user=self.participant, qr_token="token", status=Participation.Status.REGISTERED
++        )
++        self.client.force_authenticate(self.organizer)
++        confirm_url = reverse(
++            "events-confirm",
++            kwargs={"pk": self.event.pk, "user_id": self.participant.pk},
++        )
++        response = self.client.post(confirm_url)
++        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
++        participation.refresh_from_db()
++        self.assertEqual(participation.status, Participation.Status.REGISTERED)
++
++    def test_event_owner_can_create_prize(self):
++        self.client.force_authenticate(self.organizer)
++        prizes_url = reverse("events-prizes", kwargs={"pk": self.event.pk})
++        response = self.client.post(
++            prizes_url,
++            {"name": "Forum ticket", "description": "VIP", "prize_type": "TICKETS", "quantity": 5},
++            format="json",
++        )
++        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
++
++    def test_non_owner_cannot_create_prize(self):
++        self.client.force_authenticate(self.other_user)
++        prizes_url = reverse("events-prizes", kwargs={"pk": self.event.pk})
++        response = self.client.post(
++            prizes_url,
++            {"name": "Forum ticket", "description": "VIP", "prize_type": "TICKETS", "quantity": 5},
++            format="json",
++        )
++        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+Index: events-project/events/admin.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>from django.contrib import admin\n\n# Register your models here.\n
+===================================================================
+diff --git a/events-project/events/admin.py b/events-project/events/admin.py
+--- a/events-project/events/admin.py	(revision 16df52b608e118d287a3d7f6e17f6e9134ba5e2b)
++++ b/events-project/events/admin.py	(date 1774350398037)
+@@ -1,3 +1,29 @@
+ from django.contrib import admin
+ 
+-# Register your models here.
++from .models import Event, EventCategory, Participation, Prize
++
++
++@admin.register(EventCategory)
++class EventCategoryAdmin(admin.ModelAdmin):
++    list_display = ("name", "slug")
++    search_fields = ("name", "slug")
++
++
++@admin.register(Event)
++class EventAdmin(admin.ModelAdmin):
++    list_display = ("name", "organizer", "category", "event_date", "status", "base_points")
++    list_filter = ("status", "event_type", "category")
++    search_fields = ("name",)
++
++
++@admin.register(Prize)
++class PrizeAdmin(admin.ModelAdmin):
++    list_display = ("name", "event", "prize_type", "quantity")
++    list_filter = ("prize_type",)
++    search_fields = ("name",)
++
++
++@admin.register(Participation)
++class ParticipationAdmin(admin.ModelAdmin):
++    list_display = ("event", "user", "status", "points_awarded", "checked_in_at", "confirmed_at")
++    list_filter = ("status",)
+Index: events-project/events-project/settings.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>\"\"\"\nDjango settings for events-project-project project.\n\nGenerated by 'django-admin startproject' using Django 5.1.2.\n\nFor more information on this file, see\nhttps://docs.djangoproject.com/en/5.1/topics/settings/\n\nFor the full list of settings and their values, see\nhttps://docs.djangoproject.com/en/5.1/ref/settings/\n\"\"\"\n\nfrom pathlib import Path\n\n# Build paths inside the project like this: BASE_DIR / 'subdir'.\nBASE_DIR = Path(__file__).resolve().parent.parent\n\n\n# Quick-start development settings - unsuitable for production\n# See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/\n\n# SECURITY WARNING: keep the secret key used in production secret!\nSECRET_KEY = 'django-insecure-5bxo(&$2#=3=z-j7r2%jt_4_d$s%zrnrxp+zu#9mr0_%tsn%zy'\n\n# SECURITY WARNING: don't run with debug turned on in production!\nDEBUG = True\n\nALLOWED_HOSTS = []\n\n\n# Application definition\n\nINSTALLED_APPS = [\n    'django.contrib.admin',\n    'django.contrib.auth',\n    'django.contrib.contenttypes',\n    'django.contrib.sessions',\n    'django.contrib.messages',\n    'django.contrib.staticfiles',\n]\n\nMIDDLEWARE = [\n    'django.middleware.security.SecurityMiddleware',\n    'django.contrib.sessions.middleware.SessionMiddleware',\n    'django.middleware.common.CommonMiddleware',\n    'django.middleware.csrf.CsrfViewMiddleware',\n    'django.contrib.auth.middleware.AuthenticationMiddleware',\n    'django.contrib.messages.middleware.MessageMiddleware',\n    'django.middleware.clickjacking.XFrameOptionsMiddleware',\n]\n\nROOT_URLCONF = 'urls'\n\nTEMPLATES = [\n    {\n        'BACKEND': 'django.template.backends.django.DjangoTemplates',\n        'DIRS': [],\n        'APP_DIRS': True,\n        'OPTIONS': {\n            'context_processors': [\n                'django.template.context_processors.debug',\n                'django.template.context_processors.request',\n                'django.contrib.auth.context_processors.auth',\n                'django.contrib.messages.context_processors.messages',\n            ],\n        },\n    },\n]\n\nWSGI_APPLICATION = 'wsgi.application'\n\n\n# Database\n# https://docs.djangoproject.com/en/5.1/ref/settings/#databases\n\nDATABASES = {\n    'default': {\n        'ENGINE': 'django.db.backends.sqlite3',\n        'NAME': BASE_DIR / 'db.sqlite3',\n    }\n}\n\n\n# Password validation\n# https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators\n\nAUTH_PASSWORD_VALIDATORS = [\n    {\n        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',\n    },\n    {\n        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',\n    },\n    {\n        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',\n    },\n    {\n        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',\n    },\n]\n\n\n# Internationalization\n# https://docs.djangoproject.com/en/5.1/topics/i18n/\n\nLANGUAGE_CODE = 'en-us'\n\nTIME_ZONE = 'UTC'\n\nUSE_I18N = True\n\nUSE_TZ = True\n\n\n# Static files (CSS, JavaScript, Images)\n# https://docs.djangoproject.com/en/5.1/howto/static-files/\n\nSTATIC_URL = 'static/'\n\n# Default primary key field type\n# https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field\n\nDEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'\n
+===================================================================
+diff --git a/events-project/events-project/settings.py b/events-project/events-project/settings.py
+--- a/events-project/events-project/settings.py	(revision 16df52b608e118d287a3d7f6e17f6e9134ba5e2b)
++++ b/events-project/events-project/settings.py	(date 1774350659242)
+@@ -37,6 +37,15 @@
+     'django.contrib.sessions',
+     'django.contrib.messages',
+     'django.contrib.staticfiles',
++    'rest_framework',
++    'drf_spectacular',
++    'django_filters',
++    'accounts',
++    'events',
++    'rating',
++    'organizers',
++    'inspector',
++    'admin_panel',
+ ]
+ 
+ MIDDLEWARE = [
+@@ -121,3 +130,18 @@
+ # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
+ 
+ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
++
++REST_FRAMEWORK = {
++    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
++    "DEFAULT_FILTER_BACKENDS": ["django_filters.rest_framework.DjangoFilterBackend"],
++    "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
++}
++
++SPECTACULAR_SETTINGS = {
++    "TITLE": "Events Platform API",
++    "VERSION": "1.0.0",
++    "ENUM_NAME_OVERRIDES": {
++        "EventStatusEnum": "events.models.Event.Status",
++        "ParticipationStatusEnum": "events.models.Participation.Status",
++    },
++}
+Index: events-project/events/apps.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>from django.apps import AppConfig\n\n\nclass EventsConfig(AppConfig):\n    default_auto_field = 'django.db.models.BigAutoField'\n    name = 'events'\n
+===================================================================
+diff --git a/events-project/events/apps.py b/events-project/events/apps.py
+--- a/events-project/events/apps.py	(revision 16df52b608e118d287a3d7f6e17f6e9134ba5e2b)
++++ b/events-project/events/apps.py	(date 1774350393441)
+@@ -4,3 +4,6 @@
+ class EventsConfig(AppConfig):
+     default_auto_field = 'django.db.models.BigAutoField'
+     name = 'events'
++
++    def ready(self):
++        from . import signals  # noqa: F401
+Index: events-project/events/views.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>from django.shortcuts import render\n\n# Create your views here.\n
+===================================================================
+diff --git a/events-project/events/views.py b/events-project/events/views.py
+--- a/events-project/events/views.py	(revision 16df52b608e118d287a3d7f6e17f6e9134ba5e2b)
++++ b/events-project/events/views.py	(date 1774351154661)
+@@ -1,3 +1,208 @@
+-from django.shortcuts import render
++from django.contrib.auth import get_user_model
++from django.db.models import Count
++from django.shortcuts import get_object_or_404
++from django_filters.rest_framework import DjangoFilterBackend
++from drf_spectacular.utils import (
++    OpenApiParameter,
++    OpenApiResponse,
++    OpenApiTypes,
++    extend_schema,
++    extend_schema_view,
++)
++from rest_framework import permissions, status, viewsets
++from rest_framework.decorators import action
++from rest_framework.exceptions import PermissionDenied
++from rest_framework.filters import OrderingFilter
++from rest_framework.response import Response
++
++from .filters import EventFilter
++from .models import Event, Participation, Prize
++from .serializers import (
++    EventCheckinSerializer,
++    EventReadSerializer,
++    EventRegisterResponseSerializer,
++    EventWriteSerializer,
++    ParticipationSerializer,
++    PrizeSerializer,
++)
++from .services import checkin_participant, confirm_participation, register_participant
++
++
++def _is_admin(user) -> bool:
++    return getattr(user, "is_superuser", False) or getattr(user, "role", None) == "ADMIN"
++
+ 
+-# Create your views here.
++def _is_organizer(user) -> bool:
++    role = getattr(user, "role", None)
++    return role in (None, "ORGANIZER")
++
++
++def _is_participant(user) -> bool:
++    role = getattr(user, "role", None)
++    return role in (None, "PARTICIPANT")
++
++
++class EventPermission(permissions.BasePermission):
++    def has_permission(self, request, view):
++        if view.action in ("list", "retrieve"):
++            return request.user and request.user.is_authenticated
++        if view.action == "create":
++            return request.user and request.user.is_authenticated and (_is_organizer(request.user) or _is_admin(request.user))
++        return request.user and request.user.is_authenticated
++
++    def has_object_permission(self, request, view, obj):
++        if view.action in ("retrieve", "list"):
++            return True
++        if view.action in ("register", "checkin"):
++            return _is_participant(request.user)
++        if _is_admin(request.user):
++            return True
++        return obj.organizer_id == request.user.id
++
++
++@extend_schema_view(
++    list=extend_schema(
++        summary="Получить список мероприятий",
++        description="Возвращает список мероприятий с фильтрацией и сортировкой.",
++        tags=["Мероприятия"],
++    ),
++    retrieve=extend_schema(
++        summary="Получить карточку мероприятия",
++        description="Возвращает детальную информацию по выбранному мероприятию.",
++        tags=["Мероприятия"],
++    ),
++    create=extend_schema(
++        summary="Создать мероприятие",
++        description="Создает новое мероприятие. Доступно организатору или администратору.",
++        tags=["Мероприятия"],
++    ),
++    update=extend_schema(
++        summary="Обновить мероприятие",
++        description="Полностью обновляет карточку мероприятия.",
++        tags=["Мероприятия"],
++    ),
++    partial_update=extend_schema(
++        summary="Частично обновить мероприятие",
++        description="Частично обновляет поля карточки мероприятия.",
++        tags=["Мероприятия"],
++    ),
++    destroy=extend_schema(
++        summary="Удалить мероприятие",
++        description="Удаляет мероприятие.",
++        tags=["Мероприятия"],
++    ),
++)
++class EventViewSet(viewsets.ModelViewSet):
++    queryset = Event.objects.select_related("category", "organizer").prefetch_related("prizes").all()
++    permission_classes = [EventPermission]
++    filter_backends = [DjangoFilterBackend, OrderingFilter]
++    filterset_class = EventFilter
++    ordering_fields = ["event_date", "created_at"]
++    ordering = ["-event_date"]
++
++    def get_queryset(self):
++        return self.queryset.annotate(participants_count=Count("participations"))
++
++    def get_serializer_class(self):
++        if self.action in ("list", "retrieve"):
++            return EventReadSerializer
++        if self.action == "checkin":
++            return EventCheckinSerializer
++        return EventWriteSerializer
++
++    def perform_create(self, serializer):
++        serializer.save(organizer=self.request.user)
++
++    @extend_schema(
++        summary="Записаться на мероприятие",
++        description="Регистрирует текущего участника на выбранное мероприятие и выдает QR-токен.",
++        tags=["Мероприятия"],
++        request=None,
++        responses={201: EventRegisterResponseSerializer, 400: OpenApiResponse(description="Ошибка валидации")},
++    )
++    @action(detail=True, methods=["post"])
++    def register(self, request, pk=None):
++        if not _is_participant(request.user):
++            raise PermissionDenied("Only participants can register.")
++        event = self.get_object()
++        participation = register_participant(event=event, user=request.user)
++        serializer = EventRegisterResponseSerializer(participation)
++        return Response(serializer.data, status=status.HTTP_201_CREATED)
++
++    @extend_schema(
++        summary="Отметиться на мероприятии",
++        description="Проводит check-in участника по QR-токену.",
++        tags=["Мероприятия"],
++        request=EventCheckinSerializer,
++        responses={200: EventRegisterResponseSerializer},
++    )
++    @action(detail=True, methods=["post"])
++    def checkin(self, request, pk=None):
++        event = self.get_object()
++        serializer = EventCheckinSerializer(data=request.data)
++        serializer.is_valid(raise_exception=True)
++        participation = checkin_participant(
++            event=event,
++            user=request.user,
++            qr_token=serializer.validated_data["qr_token"],
++        )
++        return Response(EventRegisterResponseSerializer(participation).data)
++
++    @extend_schema(
++        request=None,
++        parameters=[
++            OpenApiParameter(
++                name="user_id",
++                type=OpenApiTypes.INT,
++                location=OpenApiParameter.PATH,
++                description="ID участника",
++            )
++        ],
++        summary="Подтвердить участие",
++        description="Подтверждает участие выбранного участника организатором или администратором.",
++        tags=["Мероприятия"],
++        responses={200: EventRegisterResponseSerializer},
++    )
++    @action(detail=True, methods=["post"], url_path=r"confirm/(?P<user_id>\d+)")
++    def confirm(self, request, pk=None, user_id=None):
++        event = self.get_object()
++        participant_user = get_object_or_404(get_user_model(), pk=user_id)
++        participation = confirm_participation(event=event, participant_user=participant_user, actor=request.user)
++        return Response(EventRegisterResponseSerializer(participation).data)
++
++    @extend_schema(
++        summary="Получить список участников мероприятия",
++        description="Возвращает список регистраций участников для выбранного мероприятия.",
++        tags=["Мероприятия"],
++        responses={200: ParticipationSerializer(many=True)},
++    )
++    @action(detail=True, methods=["get"])
++    def participants(self, request, pk=None):
++        event = self.get_object()
++        if not (_is_admin(request.user) or event.organizer_id == request.user.id):
++            raise PermissionDenied("Only event owner or admin can view participants.")
++        participations = event.participations.select_related("user").all()
++        serializer = ParticipationSerializer(participations, many=True)
++        return Response(serializer.data)
++
++    @extend_schema(
++        summary="Получить или добавить призы мероприятия",
++        description="GET возвращает призы мероприятия, POST создает новый приз для мероприятия.",
++        tags=["Мероприятия"],
++        request=PrizeSerializer,
++        responses={200: PrizeSerializer(many=True), 201: PrizeSerializer},
++    )
++    @action(detail=True, methods=["get", "post"])
++    def prizes(self, request, pk=None):
++        event = self.get_object()
++        if request.method.lower() == "get":
++            serializer = PrizeSerializer(event.prizes.all(), many=True)
++            return Response(serializer.data)
++
++        if not (_is_admin(request.user) or event.organizer_id == request.user.id):
++            raise PermissionDenied("Only event owner or admin can manage prizes.")
++
++        serializer = PrizeSerializer(data=request.data)
++        serializer.is_valid(raise_exception=True)
++        serializer.save(event=event)
++        return Response(serializer.data, status=status.HTTP_201_CREATED)
+Index: events-project/events-project/urls.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>\"\"\"\nURL configuration for events-project-project project.\n\nThe `urlpatterns` list routes URLs to views. For more information please see:\n    https://docs.djangoproject.com/en/5.1/topics/http/urls/\nExamples:\nFunction views\n    1. Add an import:  from my_app import views\n    2. Add a URL to urlpatterns:  path('', views.home, name='home')\nClass-based views\n    1. Add an import:  from other_app.views import Home\n    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')\nIncluding another URLconf\n    1. Import the include() function: from django.urls import include, path\n    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))\n\"\"\"\nfrom django.contrib import admin\nfrom django.urls import path\n\nurlpatterns = [\n    path('admin/', admin.site.urls),\n]\n
+===================================================================
+diff --git a/events-project/events-project/urls.py b/events-project/events-project/urls.py
+--- a/events-project/events-project/urls.py	(revision 16df52b608e118d287a3d7f6e17f6e9134ba5e2b)
++++ b/events-project/events-project/urls.py	(date 1774350410382)
+@@ -15,8 +15,12 @@
+     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
+ """
+ from django.contrib import admin
+-from django.urls import path
++from django.urls import include, path
++from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
+ 
+ urlpatterns = [
+     path('admin/', admin.site.urls),
++    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
++    path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
++    path("api/v1/events/", include("events.urls")),
+ ]
