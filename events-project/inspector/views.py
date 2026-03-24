@@ -9,7 +9,7 @@ from rest_framework.response import Response
 
 from events.models import Participation
 from inspector.filters import apply_candidate_filters
-from inspector.serializers import CandidateListSerializer, CandidateReportMetaSerializer
+from inspector.serializers import CandidateListSerializer
 from inspector.services import generate_candidate_pdf
 
 User = get_user_model()
@@ -56,7 +56,6 @@ class CandidateListView(GenericAPIView):
 
 class CandidateReportView(GenericAPIView):
     permission_classes = (IsInspectorAccess,)
-    serializer_class = CandidateReportMetaSerializer
 
     @swagger_auto_schema(operation_description="Скачать PDF-отчет по кандидату.")
     def get(self, request, user_id: int):
