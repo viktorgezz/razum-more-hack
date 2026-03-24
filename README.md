@@ -1,7 +1,6 @@
 # Razum More Hack
 
 [![Lint](https://github.com/viktorgezz/razum-more-hack/actions/workflows/lint.yml/badge.svg?branch=main)](https://github.com/viktorgezz/razum-more-hack/actions/workflows/lint.yml)
-[![Tests](https://github.com/viktorgezz/razum-more-hack/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/viktorgezz/razum-more-hack/actions/workflows/tests.yml)
 [![CI](https://img.shields.io/github/checks-status/viktorgezz/razum-more-hack/main?label=CI&logo=githubactions&logoColor=white)](https://github.com/viktorgezz/razum-more-hack/actions)
 [![Docker](https://img.shields.io/badge/Docker-events--project-2496ED?logo=docker&logoColor=white)](https://github.com/viktorgezz/razum-more-hack/blob/main/events-project/Dockerfile)
 
@@ -129,9 +128,9 @@ Authorization: Bearer <access_token>
 
 | Ресурс | URL (локально) |
 |--------|----------------|
-| Swagger UI | http://127.0.0.1:8000/api/docs/ |
-| ReDoc | http://127.0.0.1:8000/api/redoc/ |
-| OpenAPI schema | http://127.0.0.1:8000/api/schema/ |
+| Swagger UI | <http://127.0.0.1:8000/api/docs/> |
+| ReDoc | <http://127.0.0.1:8000/api/redoc/> |
+| OpenAPI schema | <http://127.0.0.1:8000/api/schema/> |
 | Файл схемы | `events-project/openapi.yaml` |
 
 ### Проверка кода и тесты (как в CI)
