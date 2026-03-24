@@ -10,6 +10,7 @@ from rest_framework.response import Response
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 
+from accounts.permissions import IsParticipant
 from events.filters import filter_events
 from events.models import Event, Participation, Prize
 from events.serializers import EventSerializer, ParticipationSerializer, PrizeSerializer
@@ -22,6 +23,22 @@ class ParticipantsPagination(PageNumberPagination):
     page_size = 20
     page_size_query_param = "page_size"
     max_page_size = 100
+
+
+class ParticipantEventsPagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = "page_size"
+    max_page_size = 100
+
+
+_PARTICIPANT_EVENT_ORDERING = {
+    "event_date": "event_date",
+    "-event_date": "-event_date",
+    "created_at": "created_at",
+    "-created_at": "-created_at",
+    "name": "name",
+    "-name": "-name",
+}
 
 
 class EventViewSet(viewsets.ModelViewSet):
@@ -37,6 +54,110 @@ class EventViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         return filter_events(queryset, self.request.query_params)
+
+    def _participant_event_ordering(self, request, default: str = "event_date") -> str:
+        raw = request.query_params.get("ordering", default)
+        return _PARTICIPANT_EVENT_ORDERING.get(raw, _PARTICIPANT_EVENT_ORDERING.get(default, "event_date"))
+
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="participant/catalog",
+        permission_classes=[IsAuthenticated, IsParticipant],
+    )
+    @swagger_auto_schema(
+        operation_description=(
+            "Каталог мероприятий для участника: только опубликованные / идущие / завершённые. "
+            "Пагинация и сортировка по времени мероприятия (`event_date`)."
+        ),
+        manual_parameters=[
+            openapi.Parameter("page", openapi.IN_QUERY, description="Номер страницы", type=openapi.TYPE_INTEGER),
+            openapi.Parameter(
+                "page_size",
+                openapi.IN_QUERY,
+                description="Размер страницы (до 100)",
+                type=openapi.TYPE_INTEGER,
+            ),
+            openapi.Parameter(
+                "ordering",
+                openapi.IN_QUERY,
+                description="Сортировка: event_date, -event_date (по умолчанию event_date — сначала ближайшие)",
+                type=openapi.TYPE_STRING,
+            ),
+            openapi.Parameter("category", openapi.IN_QUERY, description="slug категории", type=openapi.TYPE_STRING),
+            openapi.Parameter("event_type", openapi.IN_QUERY, description="тип мероприятия", type=openapi.TYPE_STRING),
+            openapi.Parameter("organizer_id", openapi.IN_QUERY, description="ID организатора", type=openapi.TYPE_INTEGER),
+            openapi.Parameter("date_from", openapi.IN_QUERY, description="дата события с (YYYY-MM-DD)", type=openapi.TYPE_STRING),
+            openapi.Parameter("date_to", openapi.IN_QUERY, description="дата события по (YYYY-MM-DD)", type=openapi.TYPE_STRING),
+        ],
+    )
+    def participant_catalog(self, request):
+        queryset = (
+            Event.objects.filter(
+                status__in=[
+                    Event.Status.PUBLISHED,
+                    Event.Status.ONGOING,
+                    Event.Status.COMPLETED,
+                ]
+            )
+            .select_related("category", "organizer")
+            .prefetch_related("prizes")
+        )
+        queryset = filter_events(queryset, request.query_params)
+        queryset = queryset.order_by(self._participant_event_ordering(request, default="event_date"))
+
+        paginator = ParticipantEventsPagination()
+        page = paginator.paginate_queryset(queryset, request, view=self)
+        if page is not None:
+            return paginator.get_paginated_response(EventSerializer(page, many=True).data)
+        return Response(EventSerializer(queryset, many=True).data)
+
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="participant/my",
+        permission_classes=[IsAuthenticated, IsParticipant],
+    )
+    @swagger_auto_schema(
+        operation_description=(
+            "Мероприятия, на которые зарегистрирован текущий участник. "
+            "Пагинация и сортировка по времени мероприятия (`event_date`)."
+        ),
+        manual_parameters=[
+            openapi.Parameter("page", openapi.IN_QUERY, description="Номер страницы", type=openapi.TYPE_INTEGER),
+            openapi.Parameter(
+                "page_size",
+                openapi.IN_QUERY,
+                description="Размер страницы (до 100)",
+                type=openapi.TYPE_INTEGER,
+            ),
+            openapi.Parameter(
+                "ordering",
+                openapi.IN_QUERY,
+                description="Сортировка: event_date, -event_date (по умолчанию event_date)",
+                type=openapi.TYPE_STRING,
+            ),
+            openapi.Parameter("category", openapi.IN_QUERY, description="slug категории", type=openapi.TYPE_STRING),
+            openapi.Parameter("event_type", openapi.IN_QUERY, description="тип мероприятия", type=openapi.TYPE_STRING),
+            openapi.Parameter("date_from", openapi.IN_QUERY, description="дата события с (YYYY-MM-DD)", type=openapi.TYPE_STRING),
+            openapi.Parameter("date_to", openapi.IN_QUERY, description="дата события по (YYYY-MM-DD)", type=openapi.TYPE_STRING),
+        ],
+    )
+    def participant_my_events(self, request):
+        queryset = (
+            Event.objects.filter(participations__user=request.user)
+            .select_related("category", "organizer")
+            .prefetch_related("prizes")
+            .distinct()
+        )
+        queryset = filter_events(queryset, request.query_params)
+        queryset = queryset.order_by(self._participant_event_ordering(request, default="event_date"))
+
+        paginator = ParticipantEventsPagination()
+        page = paginator.paginate_queryset(queryset, request, view=self)
+        if page is not None:
+            return paginator.get_paginated_response(EventSerializer(page, many=True).data)
+        return Response(EventSerializer(queryset, many=True).data)
 
     @swagger_auto_schema(operation_description="Получить список мероприятий (с пагинацией, фильтрацией и сортировкой).")
     def list(self, request, *args, **kwargs):
