@@ -1,0 +1,26 @@
+services:
+  backend:
+    build:
+      context: ./events-project
+      dockerfile: Dockerfile
+    container_name: events_backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./events-project/db.sqlite3:/app/db.sqlite3
+    env_file:
+      - ./events-project/.env
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+    container_name: events_frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    restart: unless-stopped
