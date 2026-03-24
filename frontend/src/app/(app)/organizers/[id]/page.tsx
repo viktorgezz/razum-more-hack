@@ -143,11 +143,13 @@ export default function OrganizerProfilePage() {
       await refreshReviews();
       setActiveTab("reviews");
     } catch (err) {
-      const message =
-        err instanceof AxiosError && err.response?.status
-          ? "Не удалось отправить отзыв"
-          : "Ошибка соединения с сервером";
-      setSubmitError(message);
+      if (err instanceof AxiosError && err.response?.data) {
+        const data = err.response.data as Record<string, unknown>;
+        const detail = typeof data.detail === "string" ? data.detail : null;
+        setSubmitError(detail ?? "Не удалось отправить отзыв");
+      } else {
+        setSubmitError("Ошибка соединения с сервером");
+      }
     } finally {
       setSubmitLoading(false);
     }
@@ -302,12 +304,17 @@ export default function OrganizerProfilePage() {
                 onChange={(e) => setSelectedEventId(e.target.value ? Number(e.target.value) : "")}
               >
                 <option value="">Выберите мероприятие</option>
-                {events.map((event) => (
-                  <option key={event.id} value={event.id}>
-                    {event.name}
-                  </option>
-                ))}
+                {events
+                  .filter((event) => event.status === "COMPLETED")
+                  .map((event) => (
+                    <option key={event.id} value={event.id}>
+                      {event.name}
+                    </option>
+                  ))}
               </select>
+              <p className="text-xs text-neutral-400 mt-1">
+                Отзыв можно оставить только на завершённое мероприятие, в котором вы подтверждены как участник
+              </p>
 
               <div className="mt-3">
                 <p className="text-sm text-neutral-700 mb-1">Оценка</p>

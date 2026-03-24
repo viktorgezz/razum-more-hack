@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Loader2, Trophy } from "lucide-react";
 import axios from "axios";
 
@@ -58,8 +59,8 @@ export default function LoginPage() {
           <div className="mx-auto mb-6 h-16 w-16 flex items-center justify-center text-brand">
             <Trophy className="h-16 w-16" />
           </div>
-          <h1 className="text-3xl font-semibold text-neutral-900">Платформа рейтинга активности</h1>
-          <p className="mt-3 text-neutral-600">Молодёжный парламент и кадровый резерв</p>
+          <h1 className="text-3xl font-semibold text-neutral-900">Активный разум</h1>
+          <p className="mt-3 text-neutral-600">Платформа рейтинга активности молодёжного парламента</p>
         </div>
       </div>
 
@@ -104,6 +105,13 @@ export default function LoginPage() {
           </button>
 
           {error ? <div className="mt-3 p-3 bg-danger/10 text-danger text-sm rounded">{error}</div> : null}
+
+          <p className="mt-5 text-center text-sm text-neutral-500">
+            Нет аккаунта?{" "}
+            <Link href="/register" className="text-brand font-medium hover:underline">
+              Зарегистрироваться
+            </Link>
+          </p>
         </form>
       </div>
     </div>
