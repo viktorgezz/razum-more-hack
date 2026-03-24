@@ -1,8 +1,10 @@
+# syntax=docker/dockerfile:1
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_DEFAULT_TIMEOUT=120
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_DEFAULT_TIMEOUT=600
 
 ARG PIP_INDEX_URL=https://pypi.org/simple
 ARG PIP_EXTRA_INDEX_URL=
@@ -14,7 +16,9 @@ ENV PIP_INDEX_URL=${PIP_INDEX_URL} \
 WORKDIR /app
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir --retries 10 -r requirements.txt
+# Кэш pip между сборками (BuildKit); длинный таймаут и ретраи — против обрывов PyPI
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --retries 20 --timeout 600 -r requirements.txt
 
 COPY . .
 

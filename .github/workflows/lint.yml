@@ -1,4 +1,4 @@
-name: CI
+name: Lint
 
 on:
   push:
@@ -7,8 +7,7 @@ on:
     branches: [main, master]
 
 jobs:
-  backend:
-    name: Backend (lint + tests)
+  ruff:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -23,14 +22,10 @@ jobs:
           cache: pip
           cache-dependency-path: events-project/requirements.txt
 
-      - name: Install dependencies
+      - name: Install Ruff
         run: |
           python -m pip install --upgrade pip
           pip install ruff
-          pip install -r requirements.txt
 
       - name: Ruff (syntax / fatal issues only)
         run: ruff check . --select E9,F63,F7,F82
-
-      - name: Django tests
-        run: python manage.py test

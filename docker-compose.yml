@@ -3,6 +3,10 @@ services:
     build:
       context: ./events-project
       dockerfile: Dockerfile
+      # При нестабильном доступе к pypi.org задайте зеркало, например:
+      args:
+         PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+         PIP_TRUSTED_HOST: pypi.tuna.tsinghua.edu.cn
     container_name: events_backend
     ports:
       - "8000:8000"
