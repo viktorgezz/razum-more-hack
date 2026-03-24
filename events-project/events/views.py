@@ -3,9 +3,11 @@ from django.contrib.auth import get_user_model
 from rest_framework import exceptions, mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 
+from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 
 from events.filters import filter_events
@@ -14,6 +16,12 @@ from events.serializers import EventSerializer, ParticipationSerializer, PrizeSe
 from events.services import checkin_for_event, confirm_participation, register_for_event
 
 User = get_user_model()
+
+
+class ParticipantsPagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = "page_size"
+    max_page_size = 100
 
 
 class EventViewSet(viewsets.ModelViewSet):
@@ -112,7 +120,36 @@ class EventViewSet(viewsets.ModelViewSet):
         return Response(ParticipationSerializer(participation).data, status=status.HTTP_200_OK)
 
     @action(methods=["get"], detail=True, permission_classes=[IsAuthenticated])
-    @swagger_auto_schema(operation_description="Получить список участников мероприятия (с пагинацией).")
+    @swagger_auto_schema(
+        operation_description="Получить список участников мероприятия (с пагинацией и фильтром по дате события).",
+        manual_parameters=[
+            openapi.Parameter("page", openapi.IN_QUERY, description="Номер страницы", type=openapi.TYPE_INTEGER),
+            openapi.Parameter(
+                "page_size",
+                openapi.IN_QUERY,
+                description="Размер страницы (до 100)",
+                type=openapi.TYPE_INTEGER,
+            ),
+            openapi.Parameter(
+                "event_date_from",
+                openapi.IN_QUERY,
+                description="Фильтр по дате события: от (YYYY-MM-DD)",
+                type=openapi.TYPE_STRING,
+            ),
+            openapi.Parameter(
+                "event_date_to",
+                openapi.IN_QUERY,
+                description="Фильтр по дате события: до (YYYY-MM-DD)",
+                type=openapi.TYPE_STRING,
+            ),
+            openapi.Parameter(
+                "ordering",
+                openapi.IN_QUERY,
+                description="Сортировка: created_at, -created_at, event_date, -event_date",
+                type=openapi.TYPE_STRING,
+            ),
+        ],
+    )
     def participants(self, request, pk=None):
         event = self.get_object()
         if not request.user.is_staff and event.organizer_id != request.user.id:
@@ -120,11 +157,30 @@ class EventViewSet(viewsets.ModelViewSet):
                 {"detail": "Only event organizer can view participants."},
                 status=status.HTTP_403_FORBIDDEN,
             )
-        queryset = event.participations.select_related("user").order_by("-created_at")
-        page = self.paginate_queryset(queryset)
+
+        date_from = request.query_params.get("event_date_from")
+        date_to = request.query_params.get("event_date_to")
+        if date_from and str(event.event_date.date()) < date_from:
+            return Response({"count": 0, "next": None, "previous": None, "results": []})
+        if date_to and str(event.event_date.date()) > date_to:
+            return Response({"count": 0, "next": None, "previous": None, "results": []})
+
+        ordering = request.query_params.get("ordering", "-created_at")
+        allowed_ordering = {
+            "created_at": "created_at",
+            "-created_at": "-created_at",
+            "event_date": "event__event_date",
+            "-event_date": "-event__event_date",
+        }
+        queryset = event.participations.select_related("user", "event").order_by(
+            allowed_ordering.get(ordering, "-created_at")
+        )
+
+        paginator = ParticipantsPagination()
+        page = paginator.paginate_queryset(queryset, request, view=self)
         if page is not None:
             serializer = ParticipationSerializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
+            return paginator.get_paginated_response(serializer.data)
         return Response(ParticipationSerializer(queryset, many=True).data)
 
     @action(methods=["get", "post"], detail=True, permission_classes=[IsAuthenticatedOrReadOnly])
