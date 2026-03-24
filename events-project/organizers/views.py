@@ -179,6 +179,7 @@ class OrganizerReviewCreateView(APIView):
 )
 class OrganizerReviewDeleteView(DestroyAPIView):
     permission_classes = [IsAuthenticated]
+    serializer_class = OrganizerReviewSerializer
 
     def get_object(self):
         review = get_object_or_404(

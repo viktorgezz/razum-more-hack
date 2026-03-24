@@ -17,22 +17,25 @@ class InspectorApiTests(APITestCase):
             username="inspector_admin",
             email="inspector_admin@test.local",
             password="testpass123",
-            is_staff=True,
+            role=User.Role.OBSERVER,
         )
         cls.regular = User.objects.create_user(
             username="regular_user",
             email="regular@test.local",
             password="testpass123",
+            role=User.Role.PARTICIPANT,
         )
         cls.candidate = User.objects.create_user(
             username="candidate_1",
             email="candidate_1@test.local",
             password="testpass123",
+            role=User.Role.PARTICIPANT,
         )
         organizer = User.objects.create_user(
             username="organizer_for_inspector",
             email="org@test.local",
             password="testpass123",
+            role=User.Role.ORGANIZER,
         )
         category = EventCategory.objects.create(name="IT", slug="it", description="IT events")
         event = Event.objects.create(
@@ -59,9 +62,9 @@ class InspectorApiTests(APITestCase):
 
     def test_inspector_requires_authentication(self):
         response = self.client.get("/api/inspector/candidates/")
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 401)
 
-    def test_inspector_denies_non_staff(self):
+    def test_inspector_denies_non_observer(self):
         self.client.force_authenticate(self.regular)
         response = self.client.get("/api/inspector/candidates/")
         self.assertEqual(response.status_code, 403)

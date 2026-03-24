@@ -2,22 +2,30 @@ from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 
-from reportlab.lib.pagesizes import A4
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.pdfgen import canvas
-
 
 def _register_unicode_fonts() -> tuple[str, str]:
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+
     regular_name = "DejaVuSans"
     bold_name = "DejaVuSans-Bold"
-    regular_path = Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf")
-    bold_path = Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf")
 
-    if regular_path.exists() and regular_name not in pdfmetrics.getRegisteredFontNames():
-        pdfmetrics.registerFont(TTFont(regular_name, str(regular_path)))
-    if bold_path.exists() and bold_name not in pdfmetrics.getRegisteredFontNames():
-        pdfmetrics.registerFont(TTFont(bold_name, str(bold_path)))
+    font_candidates = [
+        (
+            Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+            Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
+        ),
+        (
+            Path("C:/Windows/Fonts/arial.ttf"),
+            Path("C:/Windows/Fonts/arialbd.ttf"),
+        ),
+    ]
+
+    for regular_path, bold_path in font_candidates:
+        if regular_path.exists() and regular_name not in pdfmetrics.getRegisteredFontNames():
+            pdfmetrics.registerFont(TTFont(regular_name, str(regular_path)))
+        if bold_path.exists() and bold_name not in pdfmetrics.getRegisteredFontNames():
+            pdfmetrics.registerFont(TTFont(bold_name, str(bold_path)))
 
     if (
         regular_name in pdfmetrics.getRegisteredFontNames()
@@ -28,6 +36,9 @@ def _register_unicode_fonts() -> tuple[str, str]:
 
 
 def generate_candidate_pdf(candidate, stats: dict, participations) -> bytes:
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+
     buffer = BytesIO()
     pdf = canvas.Canvas(buffer, pagesize=A4)
     regular_font, bold_font = _register_unicode_fonts()

@@ -1,12 +1,12 @@
 from django.contrib.auth import get_user_model
 
+from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view, inline_serializer
 from rest_framework import exceptions, mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
-
-from drf_yasg.utils import swagger_auto_schema
+from rest_framework import serializers
 
 from events.filters import filter_events
 from events.models import Event, Participation, Prize
@@ -16,6 +16,45 @@ from events.services import checkin_for_event, confirm_participation, register_f
 User = get_user_model()
 
 
+EVENT_LIST_PARAMETERS = [
+    OpenApiParameter(name="category", description="Slug направления", required=False, type=str),
+    OpenApiParameter(name="status", description="Статус мероприятия", required=False, type=str),
+    OpenApiParameter(name="event_type", description="Тип мероприятия", required=False, type=str),
+    OpenApiParameter(name="organizer_id", description="ID организатора", required=False, type=int),
+    OpenApiParameter(name="date_from", description="Дата начала периода в формате YYYY-MM-DD", required=False, type=str),
+    OpenApiParameter(name="date_to", description="Дата конца периода в формате YYYY-MM-DD", required=False, type=str),
+    OpenApiParameter(name="ordering", description="Поле сортировки", required=False, type=str),
+]
+
+
+@extend_schema_view(
+    list=extend_schema(
+        tags=["Мероприятия"],
+        summary="Список мероприятий",
+        description="Возвращает ленту мероприятий с пагинацией, фильтрацией и сортировкой.",
+        parameters=EVENT_LIST_PARAMETERS,
+    ),
+    create=extend_schema(
+        tags=["Мероприятия"],
+        summary="Создать мероприятие",
+        description="Доступно организатору или администратору. Организатором записи становится текущий пользователь.",
+    ),
+    retrieve=extend_schema(
+        tags=["Мероприятия"],
+        summary="Карточка мероприятия",
+        description="Детальная информация о мероприятии и связанных призах.",
+    ),
+    partial_update=extend_schema(
+        tags=["Мероприятия"],
+        summary="Обновить мероприятие",
+        description="Частичное обновление карточки мероприятия его организатором или администратором.",
+    ),
+    destroy=extend_schema(
+        tags=["Мероприятия"],
+        summary="Удалить мероприятие",
+        description="Удаление мероприятия его организатором или администратором.",
+    ),
+)
 class EventViewSet(viewsets.ModelViewSet):
     """Мероприятия: CRUD, регистрация, чекин и подтверждение участия."""
 
@@ -30,54 +69,66 @@ class EventViewSet(viewsets.ModelViewSet):
         queryset = super().get_queryset()
         return filter_events(queryset, self.request.query_params)
 
-    @swagger_auto_schema(operation_description="Получить список мероприятий (с пагинацией, фильтрацией и сортировкой).")
-    def list(self, request, *args, **kwargs):
-        return super().list(request, *args, **kwargs)
+    def _ensure_organizer_access(self, event=None):
+        user = self.request.user
+        if not user.is_authenticated:
+            raise exceptions.NotAuthenticated()
 
-    @swagger_auto_schema(operation_description="Создать новое мероприятие.")
-    def create(self, request, *args, **kwargs):
-        return super().create(request, *args, **kwargs)
+        is_admin = user.is_staff or user.role == User.Role.ADMIN
+        is_organizer = user.role == User.Role.ORGANIZER
+        if not (is_admin or is_organizer):
+            raise exceptions.PermissionDenied("Only organizers or admins can manage events.")
 
-    @swagger_auto_schema(operation_description="Получить карточку мероприятия по ID.")
-    def retrieve(self, request, *args, **kwargs):
-        return super().retrieve(request, *args, **kwargs)
+        if event is not None and not is_admin and event.organizer_id != user.id:
+            raise exceptions.PermissionDenied("Only the event organizer can manage this event.")
 
-    @swagger_auto_schema(operation_description="Частично обновить мероприятие.")
-    def partial_update(self, request, *args, **kwargs):
-        return super().partial_update(request, *args, **kwargs)
-
-    @swagger_auto_schema(operation_description="Удалить мероприятие.")
-    def destroy(self, request, *args, **kwargs):
-        return super().destroy(request, *args, **kwargs)
+    def _ensure_participant_access(self):
+        user = self.request.user
+        if not user.is_authenticated:
+            raise exceptions.NotAuthenticated()
+        if user.role != User.Role.PARTICIPANT:
+            raise exceptions.PermissionDenied("Only participants can register for events.")
 
     def perform_create(self, serializer):
+        self._ensure_organizer_access()
         serializer.save(organizer=self.request.user)
 
     def perform_update(self, serializer):
-        event = self.get_object()
-        user = self.request.user
-        if not user.is_staff and event.organizer_id != user.id:
-            raise exceptions.PermissionDenied("Only organizer can update this event.")
+        self._ensure_organizer_access(self.get_object())
         serializer.save()
 
     def perform_destroy(self, instance):
-        user = self.request.user
-        if not user.is_staff and instance.organizer_id != user.id:
-            raise exceptions.PermissionDenied("Only organizer can delete this event.")
+        self._ensure_organizer_access(instance)
         instance.delete()
 
+    @extend_schema(
+        tags=["Мероприятия"],
+        summary="Записаться на мероприятие",
+        description="Создаёт заявку на участие и QR-токен для последующего чекина.",
+        responses={200: ParticipationSerializer, 201: ParticipationSerializer},
+    )
     @action(methods=["post"], detail=True, permission_classes=[IsAuthenticated])
-    @swagger_auto_schema(operation_description="Записаться на мероприятие. Возвращает запись участия и признак created.")
     def register(self, request, pk=None):
+        self._ensure_participant_access()
         event = self.get_object()
         participation, created = register_for_event(event, request.user)
         data = ParticipationSerializer(participation).data
         data["created"] = created
         return Response(data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
 
+    @extend_schema(
+        tags=["Мероприятия"],
+        summary="Отметиться по QR",
+        description="Подтверждает факт присутствия участника на мероприятии по QR-токену.",
+        request=inline_serializer(
+            name="EventCheckInRequest",
+            fields={"qr_token": serializers.CharField()},
+        ),
+        responses={200: ParticipationSerializer},
+    )
     @action(methods=["post"], detail=True, permission_classes=[IsAuthenticated])
-    @swagger_auto_schema(operation_description="Отметиться на мероприятии по QR-токену.")
     def checkin(self, request, pk=None):
+        self._ensure_participant_access()
         qr_token = request.data.get("qr_token")
         if not qr_token:
             return Response(
@@ -88,20 +139,30 @@ class EventViewSet(viewsets.ModelViewSet):
         participation = checkin_for_event(event, request.user, qr_token=qr_token)
         return Response(ParticipationSerializer(participation).data, status=status.HTTP_200_OK)
 
+    @extend_schema(
+        tags=["Мероприятия"],
+        summary="Подтвердить участие",
+        description="Организатор или администратор подтверждает участие конкретного пользователя и начисляет баллы.",
+        parameters=[
+            OpenApiParameter(
+                name="user_id",
+                location=OpenApiParameter.PATH,
+                required=True,
+                type=int,
+                description="ID участника для подтверждения",
+            )
+        ],
+        responses={200: ParticipationSerializer},
+    )
     @action(
         methods=["post"],
         detail=True,
         url_path=r"confirm/(?P<user_id>[^/.]+)",
         permission_classes=[IsAuthenticated],
     )
-    @swagger_auto_schema(operation_description="Подтвердить участие пользователя организатором.")
     def confirm(self, request, pk=None, user_id=None):
         event = self.get_object()
-        if not request.user.is_staff and event.organizer_id != request.user.id:
-            return Response(
-                {"detail": "Only event organizer can confirm participation."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
+        self._ensure_organizer_access(event)
 
         try:
             participant = User.objects.get(pk=user_id)
@@ -111,15 +172,16 @@ class EventViewSet(viewsets.ModelViewSet):
         participation = confirm_participation(event, participant)
         return Response(ParticipationSerializer(participation).data, status=status.HTTP_200_OK)
 
+    @extend_schema(
+        tags=["Мероприятия"],
+        summary="Список участников",
+        description="Список регистраций на мероприятие. Доступен организатору события и администратору.",
+        responses={200: ParticipationSerializer(many=True)},
+    )
     @action(methods=["get"], detail=True, permission_classes=[IsAuthenticated])
-    @swagger_auto_schema(operation_description="Получить список участников мероприятия (с пагинацией).")
     def participants(self, request, pk=None):
         event = self.get_object()
-        if not request.user.is_staff and event.organizer_id != request.user.id:
-            return Response(
-                {"detail": "Only event organizer can view participants."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
+        self._ensure_organizer_access(event)
         queryset = event.participations.select_related("user").order_by("-created_at")
         page = self.paginate_queryset(queryset)
         if page is not None:
@@ -127,8 +189,14 @@ class EventViewSet(viewsets.ModelViewSet):
             return self.get_paginated_response(serializer.data)
         return Response(ParticipationSerializer(queryset, many=True).data)
 
+    @extend_schema(
+        tags=["Мероприятия"],
+        summary="Список или создание призов",
+        description="GET возвращает призы мероприятия. POST добавляет новый приз организатором или администратором.",
+        request=PrizeSerializer,
+        responses={200: PrizeSerializer(many=True), 201: PrizeSerializer},
+    )
     @action(methods=["get", "post"], detail=True, permission_classes=[IsAuthenticatedOrReadOnly])
-    @swagger_auto_schema(operation_description="Получить список призов мероприятия или добавить новый приз.")
     def prizes(self, request, pk=None):
         event = self.get_object()
         if request.method == "GET":
@@ -139,17 +207,14 @@ class EventViewSet(viewsets.ModelViewSet):
                 return self.get_paginated_response(serializer.data)
             return Response(PrizeSerializer(queryset, many=True).data)
 
-        if not request.user.is_staff and event.organizer_id != request.user.id:
-            return Response(
-                {"detail": "Only event organizer can add prizes."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
+        self._ensure_organizer_access(event)
         serializer = PrizeSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save(event=event)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
+@extend_schema(tags=["Мероприятия"])
 class PrizeViewSet(mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     queryset = Prize.objects.select_related("event")
     serializer_class = PrizeSerializer

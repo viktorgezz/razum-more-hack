@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
+import os
 import sys
 from pathlib import Path
 
@@ -57,6 +58,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'debug_middleware.DebugApiTraceMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -88,7 +90,7 @@ WSGI_APPLICATION = 'wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'NAME': BASE_DIR / os.environ.get('SQLITE_DB_NAME', 'db.sqlite3'),
     }
 }
 
@@ -166,6 +168,16 @@ SPECTACULAR_SETTINGS = {
     'SERVE_INCLUDE_SCHEMA': False,
     'TAGS': [
         {
+            'name': 'Аутентификация',
+            'description': 'Получение и обновление JWT-токенов для доступа к защищённым эндпоинтам.',
+        },
+        {
+            'name': 'Мероприятия',
+            'description': (
+                'Создание и управление мероприятиями, регистрация участников, чекин по QR и выдача призов.'
+            ),
+        },
+        {
             'name': 'Рейтинговая система',
             'description': (
                 'Расчёт рейтинга участников, таблица лидеров и настройка весов баллов. '
@@ -179,6 +191,12 @@ SPECTACULAR_SETTINGS = {
                 'Публичные страницы организаторов, их мероприятия и система отзывов. '
                 'Рейтинг доверия организатора рассчитывается как среднее оценок от участников. '
                 'Оставить отзыв может только участник с подтверждённым участием в мероприятии.'
+            ),
+        },
+        {
+            'name': 'Инспектор кадрового резерва',
+            'description': (
+                'Расширенный поиск и отбор кандидатов для кадровой службы с возможностью выгрузки PDF-отчётов.'
             ),
         },
     ],

@@ -1,0 +1,1759 @@
+openapi: 3.0.3
+info:
+  title: Платформа рейтинга активности молодёжного парламента
+  version: 1.0.0
+  description: "\n## О проекте\nВеб-платформа для автоматизации учёта активности участников
+    молодёжного парламента и формирования прозрачного рейтинга кандидатов.\n## Роли
+    пользователей\n- **ORGANIZER** — создаёт мероприятия, верифицирует участие\n-
+    **PARTICIPANT** — участвует в мероприятиях, копит баллы\n- **OBSERVER** — просматривает
+    рейтинг, отбирает кандидатов\n- **ADMIN** — управляет платформой, настраивает
+    веса баллов\n## Аутентификация\nВсе эндпоинты требуют JWT-токен в заголовке:\n`Authorization:
+    Bearer <token>`\n    "
+paths:
+  /api/events/:
+    get:
+      operationId: events_list
+      description: Возвращает ленту мероприятий с пагинацией, фильтрацией и сортировкой.
+      summary: Список мероприятий
+      parameters:
+      - in: query
+        name: category
+        schema:
+          type: string
+        description: Slug направления
+      - in: query
+        name: date_from
+        schema:
+          type: string
+        description: Дата начала периода в формате YYYY-MM-DD
+      - in: query
+        name: date_to
+        schema:
+          type: string
+        description: Дата конца периода в формате YYYY-MM-DD
+      - in: query
+        name: event_type
+        schema:
+          type: string
+        description: Тип мероприятия
+      - in: query
+        name: ordering
+        schema:
+          type: string
+        description: Поле сортировки
+      - in: query
+        name: organizer_id
+        schema:
+          type: integer
+        description: ID организатора
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: query
+        name: status
+        schema:
+          type: string
+        description: Статус мероприятия
+      tags:
+      - Мероприятия
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedEventList'
+          description: ''
+    post:
+      operationId: events_create
+      description: Доступно организатору или администратору. Организатором записи
+        становится текущий пользователь.
+      summary: Создать мероприятие
+      tags:
+      - Мероприятия
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Event'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Event'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Event'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+          description: ''
+  /api/events/{id}/:
+    get:
+      operationId: events_retrieve
+      description: Детальная информация о мероприятии и связанных призах.
+      summary: Карточка мероприятия
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Мероприятие.
+        required: true
+      tags:
+      - Мероприятия
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+          description: ''
+    put:
+      operationId: events_update
+      description: 'Мероприятия: CRUD, регистрация, чекин и подтверждение участия.'
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Мероприятие.
+        required: true
+      tags:
+      - events
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Event'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Event'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Event'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+          description: ''
+    patch:
+      operationId: events_partial_update
+      description: Частичное обновление карточки мероприятия его организатором или
+        администратором.
+      summary: Обновить мероприятие
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Мероприятие.
+        required: true
+      tags:
+      - Мероприятия
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedEvent'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedEvent'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedEvent'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+          description: ''
+    delete:
+      operationId: events_destroy
+      description: Удаление мероприятия его организатором или администратором.
+      summary: Удалить мероприятие
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Мероприятие.
+        required: true
+      tags:
+      - Мероприятия
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/events/{id}/checkin/:
+    post:
+      operationId: events_checkin_create
+      description: Подтверждает факт присутствия участника на мероприятии по QR-токену.
+      summary: Отметиться по QR
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Мероприятие.
+        required: true
+      tags:
+      - Мероприятия
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EventCheckInRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/EventCheckInRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/EventCheckInRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Participation'
+          description: ''
+  /api/events/{id}/confirm/{user_id}/:
+    post:
+      operationId: events_confirm_create
+      description: Организатор или администратор подтверждает участие конкретного
+        пользователя и начисляет баллы.
+      summary: Подтвердить участие
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Мероприятие.
+        required: true
+      - in: path
+        name: user_id
+        schema:
+          type: integer
+        description: ID участника для подтверждения
+        required: true
+      tags:
+      - Мероприятия
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Event'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Event'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Event'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Participation'
+          description: ''
+  /api/events/{id}/participants/:
+    get:
+      operationId: events_participants_list
+      description: Список регистраций на мероприятие. Доступен организатору события
+        и администратору.
+      summary: Список участников
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Мероприятие.
+        required: true
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      tags:
+      - Мероприятия
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedParticipationList'
+          description: ''
+  /api/events/{id}/prizes/:
+    get:
+      operationId: events_prizes_list
+      description: GET возвращает призы мероприятия. POST добавляет новый приз организатором
+        или администратором.
+      summary: Список или создание призов
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Мероприятие.
+        required: true
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      tags:
+      - Мероприятия
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPrizeList'
+          description: ''
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prize'
+          description: ''
+    post:
+      operationId: events_prizes_create
+      description: GET возвращает призы мероприятия. POST добавляет новый приз организатором
+        или администратором.
+      summary: Список или создание призов
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Мероприятие.
+        required: true
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      tags:
+      - Мероприятия
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Prize'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Prize'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Prize'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPrizeList'
+          description: ''
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prize'
+          description: ''
+  /api/events/{id}/register/:
+    post:
+      operationId: events_register_create
+      description: Создаёт заявку на участие и QR-токен для последующего чекина.
+      summary: Записаться на мероприятие
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Мероприятие.
+        required: true
+      tags:
+      - Мероприятия
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Event'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Event'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Event'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Participation'
+          description: ''
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Participation'
+          description: ''
+  /api/inspector/candidates/:
+    get:
+      operationId: inspector_candidates_list
+      description: Список участников с расширенной фильтрацией для кадровой службы.
+      summary: Список кандидатов
+      parameters:
+      - in: query
+        name: max_avg_points
+        schema:
+          type: number
+          format: double
+        description: Максимальный средний балл
+      - in: query
+        name: max_events
+        schema:
+          type: integer
+        description: Максимум мероприятий
+      - in: query
+        name: min_avg_points
+        schema:
+          type: number
+          format: double
+        description: Минимальный средний балл
+      - in: query
+        name: min_events
+        schema:
+          type: integer
+        description: Минимум мероприятий
+      - in: query
+        name: ordering
+        schema:
+          type: string
+        description: 'Сортировка: total_points, avg_points, events_count, date_joined
+          и варианты с ''-'''
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      tags:
+      - Инспектор кадрового резерва
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedCandidateListList'
+          description: ''
+  /api/inspector/candidates/{user_id}/report/:
+    get:
+      operationId: inspector_candidates_report_retrieve
+      description: Скачивание PDF-отчёта с краткой статистикой и последними участиями
+        кандидата.
+      summary: PDF-отчёт по кандидату
+      parameters:
+      - in: path
+        name: user_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Инспектор кадрового резерва
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: PDF-файл отчёта
+        '404':
+          description: Кандидат не найден
+  /api/token/:
+    post:
+      operationId: token_create
+      description: Возвращает access и refresh токены по логину и паролю пользователя.
+      summary: Получить JWT-токены
+      tags:
+      - Аутентификация
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenObtainPair'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenObtainPair'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenObtainPair'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenObtainPair'
+          description: ''
+  /api/token/refresh/:
+    post:
+      operationId: token_refresh_create
+      description: Возвращает новый access-токен по действующему refresh-токену.
+      summary: Обновить access-токен
+      tags:
+      - Аутентификация
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenRefresh'
+          description: ''
+  /api/v1/organizers/:
+    get:
+      operationId: v1_organizers_list
+      description: Все верифицированные организаторы платформы с количеством проведённых
+        мероприятий.
+      summary: Список организаторов
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      tags:
+      - Профиль организатора
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedOrganizerListList'
+          description: ''
+  /api/v1/organizers/{id}/:
+    get:
+      operationId: v1_organizers_retrieve
+      description: 'Подробная страница организатора: статистика мероприятий, средний
+        рейтинг доверия и типичные призы.'
+      summary: Публичный профиль организатора
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Профиль организатора
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizerProfile'
+          description: ''
+  /api/v1/organizers/{id}/events/:
+    get:
+      operationId: v1_organizers_events_list
+      description: Список всех мероприятий, проведённых данным организатором.
+      summary: Мероприятия организатора
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      tags:
+      - Профиль организатора
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedOrganizerEventList'
+          description: ''
+  /api/v1/organizers/{id}/reviews/:
+    get:
+      operationId: v1_organizers_reviews_list
+      description: Отзывы участников об организаторе с оценками от 1 до 5.
+      summary: Отзывы об организаторе
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      tags:
+      - Профиль организатора
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedOrganizerReviewList'
+          description: ''
+  /api/v1/organizers/{id}/reviews/{review_id}/:
+    delete:
+      operationId: v1_organizers_reviews_destroy
+      description: Участник может удалить только свой собственный отзыв.
+      summary: Удалить свой отзыв
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: review_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Профиль организатора
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/organizers/{id}/reviews/create/:
+    post:
+      operationId: v1_organizers_reviews_create_create
+      description: Только для участников. Можно оставить один отзыв на мероприятие
+        при условии подтверждённого участия.
+      summary: Оставить отзыв
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Профиль организатора
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizerReviewCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OrganizerReviewCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OrganizerReviewCreate'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizerReview'
+          description: ''
+  /api/v1/ratings/leaderboard/:
+    get:
+      operationId: v1_ratings_leaderboard_list
+      description: Возвращает топ-100 участников по рейтингу. Можно фильтровать по
+        направлению.
+      summary: Таблица лидеров
+      parameters:
+      - in: query
+        name: category
+        schema:
+          type: string
+          enum:
+          - it
+          - media
+          - social
+        description: Направление для фильтрации рейтинга
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      tags:
+      - Рейтинговая система
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedRatingSnapshotList'
+          description: ''
+  /api/v1/ratings/point-weights/:
+    get:
+      operationId: v1_ratings_point_weights_list
+      description: Коэффициенты для разных типов мероприятий, которые используются
+        при расчёте рейтинга.
+      summary: Список весов баллов
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      tags:
+      - Рейтинговая система
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPointWeightList'
+          description: ''
+  /api/v1/ratings/point-weights/{id}/:
+    put:
+      operationId: v1_ratings_point_weights_update
+      description: Только для администраторов. Позволяет настроить коэффициент для
+        конкретного типа мероприятия.
+      summary: Изменить вес баллов
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Рейтинговая система
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PointWeight'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PointWeight'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PointWeight'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PointWeight'
+          description: ''
+    patch:
+      operationId: v1_ratings_point_weights_partial_update
+      description: Только для администраторов. Позволяет настроить коэффициент для
+        конкретного типа мероприятия.
+      summary: Изменить вес баллов
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Рейтинговая система
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedPointWeight'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedPointWeight'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedPointWeight'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PointWeight'
+          description: ''
+  /api/v1/ratings/rebuild/:
+    post:
+      operationId: v1_ratings_rebuild_create
+      description: Только для администраторов. Пересчитывает рейтинг всех участников
+        и обновляет места в таблице.
+      summary: Принудительный пересчёт рейтинга
+      tags:
+      - Рейтинговая система
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RebuildLeaderboardResponse'
+          description: ''
+  /api/v1/ratings/user/{user_id}/:
+    get:
+      operationId: v1_ratings_user_retrieve
+      description: Возвращает детальный рейтинг участника по всем направлениям и его
+        место в общем зачёте.
+      summary: Рейтинг пользователя
+      parameters:
+      - in: path
+        name: user_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Рейтинговая система
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RatingSnapshot'
+          description: ''
+components:
+  schemas:
+    CandidateList:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        first_name:
+          type: string
+        last_name:
+          type: string
+        email:
+          type: string
+          format: email
+        date_joined:
+          type: string
+          format: date-time
+        events_count:
+          type: integer
+        confirmed_count:
+          type: integer
+        total_points:
+          type: integer
+        avg_points:
+          type: number
+          format: double
+      required:
+      - avg_points
+      - confirmed_count
+      - date_joined
+      - email
+      - events_count
+      - first_name
+      - id
+      - last_name
+      - total_points
+      - username
+    Event:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        organizer_id:
+          type: integer
+          readOnly: true
+        category:
+          allOf:
+          - $ref: '#/components/schemas/EventCategory'
+          readOnly: true
+        category_id:
+          type: integer
+          writeOnly: true
+          nullable: true
+        name:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+        event_date:
+          type: string
+          format: date-time
+        event_type:
+          $ref: '#/components/schemas/EventTypeEbeEnum'
+        difficulty_coef:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,2}(?:\.\d{0,2})?$
+        base_points:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        max_participants:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+          nullable: true
+        status:
+          $ref: '#/components/schemas/Status43fEnum'
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        prizes:
+          type: array
+          items:
+            $ref: '#/components/schemas/Prize'
+          readOnly: true
+      required:
+      - category
+      - created_at
+      - event_date
+      - event_type
+      - id
+      - name
+      - organizer_id
+      - prizes
+    EventCategory:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 100
+        slug:
+          type: string
+          maxLength: 50
+          pattern: ^[-a-zA-Z0-9_]+$
+        description:
+          type: string
+      required:
+      - id
+      - name
+      - slug
+    EventCheckInRequest:
+      type: object
+      properties:
+        qr_token:
+          type: string
+      required:
+      - qr_token
+    EventTypeEbeEnum:
+      enum:
+      - LECTURE
+      - HACKATHON
+      - FORUM
+      - VOLUNTEER
+      - OTHER
+      type: string
+      description: |-
+        * `LECTURE` - Лекция
+        * `HACKATHON` - Хакатон
+        * `FORUM` - Форум
+        * `VOLUNTEER` - Волонтёрство
+        * `OTHER` - Другое
+    OrganizerEvent:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 200
+        event_date:
+          type: string
+          format: date-time
+        event_type:
+          $ref: '#/components/schemas/EventTypeEbeEnum'
+        category:
+          type: integer
+          nullable: true
+        difficulty_coef:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,2}(?:\.\d{0,2})?$
+        base_points:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        status:
+          $ref: '#/components/schemas/Status43fEnum'
+      required:
+      - event_date
+      - event_type
+      - id
+      - name
+    OrganizerList:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        username:
+          type: string
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          pattern: ^[\w.@+-]+$
+          maxLength: 150
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        avatar:
+          type: string
+          format: uri
+          nullable: true
+        city:
+          type: string
+          maxLength: 100
+        is_verified:
+          type: boolean
+        events_count:
+          type: integer
+          readOnly: true
+      required:
+      - events_count
+      - id
+      - username
+    OrganizerProfile:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        first_name:
+          type: string
+        last_name:
+          type: string
+        avatar:
+          type: string
+          format: uri
+          nullable: true
+        city:
+          type: string
+        is_verified:
+          type: boolean
+        events_count:
+          type: integer
+        avg_trust_score:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,1}(?:\.\d{0,2})?$
+          nullable: true
+        reviews_count:
+          type: integer
+        frequent_prizes:
+          type: array
+          items:
+            type: object
+            additionalProperties: {}
+      required:
+      - avg_trust_score
+      - city
+      - events_count
+      - first_name
+      - frequent_prizes
+      - id
+      - is_verified
+      - last_name
+      - reviews_count
+      - username
+    OrganizerReview:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        organizer:
+          type: integer
+        reviewer:
+          type: integer
+        reviewer_name:
+          type: string
+          readOnly: true
+        event:
+          type: integer
+        event_name:
+          type: string
+          readOnly: true
+        score:
+          type: integer
+          maximum: 5
+          minimum: 1
+        comment:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - event
+      - event_name
+      - id
+      - organizer
+      - reviewer
+      - reviewer_name
+      - score
+    OrganizerReviewCreate:
+      type: object
+      properties:
+        event:
+          type: integer
+        score:
+          type: integer
+          maximum: 5
+          minimum: 1
+        comment:
+          type: string
+      required:
+      - event
+      - score
+    PaginatedCandidateListList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/CandidateList'
+    PaginatedEventList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Event'
+    PaginatedOrganizerEventList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrganizerEvent'
+    PaginatedOrganizerListList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrganizerList'
+    PaginatedOrganizerReviewList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrganizerReview'
+    PaginatedParticipationList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Participation'
+    PaginatedPointWeightList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PointWeight'
+    PaginatedPrizeList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Prize'
+    PaginatedRatingSnapshotList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/RatingSnapshot'
+    Participation:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        event_id:
+          type: integer
+          readOnly: true
+        user_id:
+          type: integer
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/ParticipationStatusEnum'
+          readOnly: true
+        qr_token:
+          type: string
+          readOnly: true
+        checked_in_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        confirmed_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        points_awarded:
+          type: integer
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - checked_in_at
+      - confirmed_at
+      - created_at
+      - event_id
+      - id
+      - points_awarded
+      - qr_token
+      - status
+      - user_id
+    ParticipationStatusEnum:
+      enum:
+      - REGISTERED
+      - CHECKED_IN
+      - CONFIRMED
+      - REJECTED
+      type: string
+      description: |-
+        * `REGISTERED` - Зарегистрирован
+        * `CHECKED_IN` - Отмечен
+        * `CONFIRMED` - Подтверждён
+        * `REJECTED` - Отклонён
+    PatchedEvent:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        organizer_id:
+          type: integer
+          readOnly: true
+        category:
+          allOf:
+          - $ref: '#/components/schemas/EventCategory'
+          readOnly: true
+        category_id:
+          type: integer
+          writeOnly: true
+          nullable: true
+        name:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+        event_date:
+          type: string
+          format: date-time
+        event_type:
+          $ref: '#/components/schemas/EventTypeEbeEnum'
+        difficulty_coef:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,2}(?:\.\d{0,2})?$
+        base_points:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        max_participants:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+          nullable: true
+        status:
+          $ref: '#/components/schemas/Status43fEnum'
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        prizes:
+          type: array
+          items:
+            $ref: '#/components/schemas/Prize'
+          readOnly: true
+    PatchedPointWeight:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        event_type:
+          $ref: '#/components/schemas/PointWeightEventTypeEnum'
+        category:
+          type: integer
+          nullable: true
+        weight:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+        updated_by:
+          type: integer
+          readOnly: true
+          nullable: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    PointWeight:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        event_type:
+          $ref: '#/components/schemas/PointWeightEventTypeEnum'
+        category:
+          type: integer
+          nullable: true
+        weight:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+        updated_by:
+          type: integer
+          readOnly: true
+          nullable: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - event_type
+      - id
+      - updated_at
+      - updated_by
+    PointWeightEventTypeEnum:
+      enum:
+      - LECTURE
+      - HACKATHON
+      - FORUM
+      - VOLUNTEER
+      type: string
+      description: |-
+        * `LECTURE` - Лекция
+        * `HACKATHON` - Хакатон
+        * `FORUM` - Форум
+        * `VOLUNTEER` - Волонтёрство
+    Prize:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        event:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+        prize_type:
+          $ref: '#/components/schemas/PrizeTypeEnum'
+        quantity:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+      required:
+      - event
+      - id
+      - name
+      - prize_type
+    PrizeTypeEnum:
+      enum:
+      - MERCH
+      - TICKETS
+      - INTERNSHIP
+      - GRANT
+      - MEETING
+      type: string
+      description: |-
+        * `MERCH` - Мерч
+        * `TICKETS` - Билеты
+        * `INTERNSHIP` - Стажировка
+        * `GRANT` - Грант
+        * `MEETING` - Встреча
+    RatingSnapshot:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        user:
+          type: integer
+        username:
+          type: string
+          readOnly: true
+        first_name:
+          type: string
+          readOnly: true
+        last_name:
+          type: string
+          readOnly: true
+        rating_it:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        rating_social:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        rating_media:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        common_rating:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        rank:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        snapshot_date:
+          type: string
+          format: date
+          readOnly: true
+      required:
+      - first_name
+      - id
+      - last_name
+      - snapshot_date
+      - user
+      - username
+    RebuildLeaderboardResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        message:
+          type: string
+      required:
+      - message
+      - status
+    Status43fEnum:
+      enum:
+      - DRAFT
+      - PUBLISHED
+      - ONGOING
+      - COMPLETED
+      - CANCELLED
+      type: string
+      description: |-
+        * `DRAFT` - Черновик
+        * `PUBLISHED` - Опубликовано
+        * `ONGOING` - Идёт
+        * `COMPLETED` - Завершено
+        * `CANCELLED` - Отменено
+    TokenObtainPair:
+      type: object
+      properties:
+        username:
+          type: string
+          writeOnly: true
+        password:
+          type: string
+          writeOnly: true
+        access:
+          type: string
+          readOnly: true
+        refresh:
+          type: string
+          readOnly: true
+      required:
+      - access
+      - password
+      - refresh
+      - username
+    TokenRefresh:
+      type: object
+      properties:
+        access:
+          type: string
+          readOnly: true
+        refresh:
+          type: string
+          writeOnly: true
+      required:
+      - access
+      - refresh
+  securitySchemes:
+    jwtAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+tags:
+- name: Аутентификация
+  description: Получение и обновление JWT-токенов для доступа к защищённым эндпоинтам.
+- name: Мероприятия
+  description: Создание и управление мероприятиями, регистрация участников, чекин
+    по QR и выдача призов.
+- name: Рейтинговая система
+  description: 'Расчёт рейтинга участников, таблица лидеров и настройка весов баллов.
+    Рейтинг считается по формуле: сумма(баллы × коэффициент_сложности × вес_типа).
+    Поддерживается фильтрация по направлениям: IT, Социальное проектирование, Медиа.'
+- name: Профиль организатора
+  description: Публичные страницы организаторов, их мероприятия и система отзывов.
+    Рейтинг доверия организатора рассчитывается как среднее оценок от участников.
+    Оставить отзыв может только участник с подтверждённым участием в мероприятии.
+- name: Инспектор кадрового резерва
+  description: Расширенный поиск и отбор кандидатов для кадровой службы с возможностью
+    выгрузки PDF-отчётов.

@@ -1,7 +1,8 @@
-from drf_spectacular.utils import OpenApiParameter, OpenApiExample, extend_schema
+from drf_spectacular.utils import OpenApiParameter, extend_schema, inline_serializer
 from rest_framework.generics import ListAPIView, RetrieveAPIView, UpdateAPIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework import serializers
 from rest_framework.views import APIView
 
 from .models import PointWeight, RatingSnapshot
@@ -84,6 +85,16 @@ class PointWeightUpdateView(UpdateAPIView):
     tags=['Рейтинговая система'],
     summary='Принудительный пересчёт рейтинга',
     description='Только для администраторов. Пересчитывает рейтинг всех участников и обновляет места в таблице.',
+    request=None,
+    responses={
+        200: inline_serializer(
+            name='RebuildLeaderboardResponse',
+            fields={
+                'status': serializers.CharField(),
+                'message': serializers.CharField(),
+            },
+        )
+    },
 )
 class RebuildLeaderboardView(APIView):
     permission_classes = [IsAdmin]

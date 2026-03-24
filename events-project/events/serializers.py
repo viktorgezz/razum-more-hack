@@ -20,7 +20,11 @@ class EventSerializer(serializers.ModelSerializer):
     organizer_id = serializers.PrimaryKeyRelatedField(source="organizer", read_only=True)
     category = EventCategorySerializer(read_only=True)
     category_id = serializers.PrimaryKeyRelatedField(
-        source="category", queryset=EventCategory.objects.all(), write_only=True
+        source="category",
+        queryset=EventCategory.objects.all(),
+        write_only=True,
+        required=False,
+        allow_null=True,
     )
     prizes = PrizeSerializer(many=True, read_only=True)
 
