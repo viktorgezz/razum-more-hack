@@ -28,7 +28,7 @@ SECRET_KEY = 'django-insecure-5bxo(&$2#=3=z-j7r2%jt_4_d$s%zrnrxp+zu#9mr0_%tsn%zy
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'testserver']
 
 
 # Application definition
@@ -41,11 +41,14 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
-    'drf_yasg',
-    'events.apps.EventsConfig',
-    'inspector.apps.InspectorConfig',
-    'rating.apps.RatingConfig',
-    'admin_panel.apps.AdminPanelConfig',
+    'drf_spectacular',
+
+    'accounts',
+    'events',
+    'rating',
+    'organizers',
+    'inspector',
+    'admin_panel',
 ]
 
 MIDDLEWARE = [
@@ -131,7 +134,52 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+AUTH_USER_MODEL = 'accounts.User'
+
 REST_FRAMEWORK = {
-    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
-    "PAGE_SIZE": 10,
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 20,
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Платформа рейтинга активности молодёжного парламента',
+    'DESCRIPTION': '''
+## О проекте
+Веб-платформа для автоматизации учёта активности участников молодёжного парламента и формирования прозрачного рейтинга кандидатов.
+## Роли пользователей
+- **ORGANIZER** — создаёт мероприятия, верифицирует участие
+- **PARTICIPANT** — участвует в мероприятиях, копит баллы
+- **OBSERVER** — просматривает рейтинг, отбирает кандидатов
+- **ADMIN** — управляет платформой, настраивает веса баллов
+## Аутентификация
+Все эндпоинты требуют JWT-токен в заголовке:
+`Authorization: Bearer <token>`
+    ''',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'TAGS': [
+        {
+            'name': 'Рейтинговая система',
+            'description': (
+                'Расчёт рейтинга участников, таблица лидеров и настройка весов баллов. '
+                'Рейтинг считается по формуле: сумма(баллы × коэффициент_сложности × вес_типа). '
+                'Поддерживается фильтрация по направлениям: IT, Социальное проектирование, Медиа.'
+            ),
+        },
+        {
+            'name': 'Профиль организатора',
+            'description': (
+                'Публичные страницы организаторов, их мероприятия и система отзывов. '
+                'Рейтинг доверия организатора рассчитывается как среднее оценок от участников. '
+                'Оставить отзыв может только участник с подтверждённым участием в мероприятии.'
+            ),
+        },
+    ],
 }

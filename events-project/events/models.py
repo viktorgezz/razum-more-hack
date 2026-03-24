@@ -6,15 +6,14 @@ from django.utils import timezone
 
 
 class EventCategory(models.Model):
-    id = models.AutoField(primary_key=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    name = models.CharField(max_length=120, unique=True)
-    slug = models.SlugField(max_length=80, unique=True)
+    name = models.CharField(max_length=100)
+    slug = models.SlugField(unique=True)
     description = models.TextField(blank=True)
 
     class Meta:
-        ordering = ("name",)
+        verbose_name = 'Категория мероприятия'
+        verbose_name_plural = 'Категории мероприятий'
+        ordering = ('name',)
 
     def __str__(self):
         return self.name
@@ -22,100 +21,95 @@ class EventCategory(models.Model):
 
 class Event(models.Model):
     class EventType(models.TextChoices):
-        LECTURE = "LECTURE", "Lecture"
-        HACKATHON = "HACKATHON", "Hackathon"
-        FORUM = "FORUM", "Forum"
-        VOLUNTEER = "VOLUNTEER", "Volunteer"
-        OTHER = "OTHER", "Other"
+        LECTURE = 'LECTURE', 'Лекция'
+        HACKATHON = 'HACKATHON', 'Хакатон'
+        FORUM = 'FORUM', 'Форум'
+        VOLUNTEER = 'VOLUNTEER', 'Волонтёрство'
+        OTHER = 'OTHER', 'Другое'
 
     class Status(models.TextChoices):
-        DRAFT = "DRAFT", "Draft"
-        PUBLISHED = "PUBLISHED", "Published"
-        ONGOING = "ONGOING", "Ongoing"
-        COMPLETED = "COMPLETED", "Completed"
-        CANCELLED = "CANCELLED", "Cancelled"
+        DRAFT = 'DRAFT', 'Черновик'
+        PUBLISHED = 'PUBLISHED', 'Опубликовано'
+        ONGOING = 'ONGOING', 'Идёт'
+        COMPLETED = 'COMPLETED', 'Завершено'
+        CANCELLED = 'CANCELLED', 'Отменено'
 
-    id = models.AutoField(primary_key=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
     organizer = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="organized_events"
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='organized_events'
     )
     category = models.ForeignKey(
-        EventCategory, on_delete=models.PROTECT, related_name="events"
+        EventCategory, on_delete=models.SET_NULL, null=True, blank=True, related_name='events'
     )
-    name = models.CharField(max_length=255)
-    description = models.TextField()
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
     event_date = models.DateTimeField()
-    event_type = models.CharField(max_length=32, choices=EventType.choices)
-    difficulty_coef = models.DecimalField(max_digits=4, decimal_places=2, default=Decimal("1.00"))
-    base_points = models.PositiveIntegerField(default=0)
-    max_participants = models.PositiveIntegerField(null=True, blank=True)
-    status = models.CharField(max_length=16, choices=Status.choices, default=Status.DRAFT)
+    event_type = models.CharField(max_length=20, choices=EventType.choices)
+    difficulty_coef = models.DecimalField(max_digits=4, decimal_places=2, default=Decimal('1.00'))
+    base_points = models.PositiveIntegerField(default=10)
+    max_participants = models.PositiveIntegerField(default=100, null=True, blank=True)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ("-event_date",)
+        verbose_name = 'Мероприятие'
+        verbose_name_plural = 'Мероприятия'
+        ordering = ('-event_date',)
 
     def __str__(self):
         return self.name
 
     def calculate_points(self) -> int:
         value = Decimal(self.base_points) * Decimal(str(self.difficulty_coef))
-        return int(value.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+        return int(value.quantize(Decimal('1'), rounding=ROUND_HALF_UP))
 
 
 class Prize(models.Model):
     class PrizeType(models.TextChoices):
-        MERCH = "MERCH", "Merch"
-        TICKETS = "TICKETS", "Tickets"
-        INTERNSHIP = "INTERNSHIP", "Internship"
-        GRANT = "GRANT", "Grant"
-        MEETING = "MEETING", "Meeting"
+        MERCH = 'MERCH', 'Мерч'
+        TICKETS = 'TICKETS', 'Билеты'
+        INTERNSHIP = 'INTERNSHIP', 'Стажировка'
+        GRANT = 'GRANT', 'Грант'
+        MEETING = 'MEETING', 'Встреча'
 
-    id = models.AutoField(primary_key=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="prizes")
-    name = models.CharField(max_length=255)
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='prizes')
+    name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     prize_type = models.CharField(max_length=20, choices=PrizeType.choices)
     quantity = models.PositiveIntegerField(default=1)
 
     class Meta:
-        ordering = ("name",)
+        verbose_name = 'Приз'
+        verbose_name_plural = 'Призы'
 
     def __str__(self):
-        return f"{self.name} ({self.event.name})"
+        return self.name
 
 
 class Participation(models.Model):
     class Status(models.TextChoices):
-        REGISTERED = "REGISTERED", "Registered"
-        CHECKED_IN = "CHECKED_IN", "Checked In"
-        CONFIRMED = "CONFIRMED", "Confirmed"
-        REJECTED = "REJECTED", "Rejected"
+        REGISTERED = 'REGISTERED', 'Зарегистрирован'
+        CHECKED_IN = 'CHECKED_IN', 'Отмечен'
+        CONFIRMED = 'CONFIRMED', 'Подтверждён'
+        REJECTED = 'REJECTED', 'Отклонён'
 
-    id = models.AutoField(primary_key=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="participations")
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='participations')
     user = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="event_participations"
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='participations'
     )
-    status = models.CharField(max_length=16, choices=Status.choices, default=Status.REGISTERED)
-    qr_token = models.CharField(max_length=128, unique=True)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.REGISTERED)
+    qr_token = models.CharField(max_length=255, unique=True, blank=True)
     checked_in_at = models.DateTimeField(null=True, blank=True)
     confirmed_at = models.DateTimeField(null=True, blank=True)
     points_awarded = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ("-created_at",)
-        constraints = [
-            models.UniqueConstraint(fields=("event", "user"), name="unique_event_user_participation")
-        ]
+        verbose_name = 'Участие'
+        verbose_name_plural = 'Участия'
+        unique_together = ('event', 'user')
 
     def __str__(self):
-        return f"{self.user} - {self.event}"
+        return f'{self.user} - {self.event}'
 
     def mark_checked_in(self):
         self.status = self.Status.CHECKED_IN
