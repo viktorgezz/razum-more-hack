@@ -44,6 +44,8 @@ INSTALLED_APPS = [
     'drf_yasg',
     'events.apps.EventsConfig',
     'inspector.apps.InspectorConfig',
+    'rating.apps.RatingConfig',
+    'admin_panel.apps.AdminPanelConfig',
 ]
 
 MIDDLEWARE = [
