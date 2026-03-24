@@ -2,10 +2,12 @@ from datetime import timedelta
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
+from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from events.models import Event, EventCategory, Participation
+from inspector.services import generate_candidate_pdf
 
 User = get_user_model()
 
@@ -84,3 +86,49 @@ class InspectorApiTests(APITestCase):
         response = self.client.get(f"/api/inspector/candidates/{self.candidate.id}/report/")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Type"], "application/pdf")
+
+
+class InspectorPdfServiceTests(TestCase):
+    """Unit tests for inspector.services PDF generation."""
+
+    def test_generate_candidate_pdf_returns_pdf_bytes(self):
+        user = User.objects.create_user(
+            username="pdf_user",
+            email="pdf_user@test.local",
+            password="pass12345",
+            role=User.Role.PARTICIPANT,
+        )
+        organizer = User.objects.create_user(
+            username="pdf_org",
+            email="pdf_org@test.local",
+            password="pass12345",
+            role=User.Role.ORGANIZER,
+        )
+        category = EventCategory.objects.create(name="IT", slug="it", description="")
+        event = Event.objects.create(
+            organizer=organizer,
+            category=category,
+            name="PDF Event Name",
+            description="",
+            event_date=timezone.now(),
+            event_type=Event.EventType.LECTURE,
+            difficulty_coef=Decimal("1.00"),
+            base_points=10,
+            status=Event.Status.COMPLETED,
+        )
+        part = Participation.objects.create(
+            event=event,
+            user=user,
+            status=Participation.Status.CONFIRMED,
+            qr_token="pdf-tok-1",
+            points_awarded=15,
+        )
+        stats = {
+            "events_count": 1,
+            "confirmed_count": 1,
+            "total_points": 15,
+            "avg_points": 15.0,
+        }
+        pdf_bytes = generate_candidate_pdf(user, stats, [part])
+        self.assertGreater(len(pdf_bytes), 100)
+        self.assertTrue(pdf_bytes.startswith(b"%PDF"))

@@ -101,3 +101,5 @@ yarn-error.log*
 logs/
 *.tmp
 *.bak
+.cursor
+.venv
