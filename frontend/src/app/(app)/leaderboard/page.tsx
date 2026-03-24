@@ -43,7 +43,6 @@ function PodiumCard({
   user: RatingSnapshot;
   place: 1 | 2 | 3;
 }) {
-  const orderClass = place === 1 ? "order-2 pb-2" : place === 2 ? "order-1" : "order-3";
   const cardClass =
     place === 1
       ? "bg-yellow-50 border-yellow-200"
@@ -53,7 +52,7 @@ function PodiumCard({
   const badgeClass = place === 1 ? "bg-yellow-100 text-yellow-700" : "bg-neutral-100 text-neutral-600";
 
   return (
-    <article className={cn("card flex-1 p-4", orderClass, cardClass)}>
+    <article className={cn("card flex-1 p-4", cardClass)}>
       <div className="flex items-center justify-between mb-3">
         {place === 1 ? <Crown className="h-5 w-5 text-yellow-500" /> : <span />}
         <span className={cn("badge", badgeClass)}>#{place}</span>
@@ -166,9 +165,9 @@ export default function LeaderboardPage() {
 
       {!loading && !error ? (
         <>
-          <section className="flex gap-4 mb-6 items-end">
-            {topThree[1] ? <PodiumCard user={topThree[1]} place={2} /> : null}
+          <section className="flex gap-4 mb-6">
             {topThree[0] ? <PodiumCard user={topThree[0]} place={1} /> : null}
+            {topThree[1] ? <PodiumCard user={topThree[1]} place={2} /> : null}
             {topThree[2] ? <PodiumCard user={topThree[2]} place={3} /> : null}
           </section>
 

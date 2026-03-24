@@ -1,73 +1,69 @@
 from drf_spectacular.utils import extend_schema
-from rest_framework import permissions, status
-from rest_framework.generics import GenericAPIView
+from rest_framework import status
 from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.views import TokenRefreshView
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
-from accounts.serializers import LoginSerializer, RegisterSerializer, UserProfileSerializer
+from .serializers import RegisterSerializer
 
 
-class RegisterView(GenericAPIView):
-    permission_classes = (permissions.AllowAny,)
-    serializer_class = RegisterSerializer
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    @classmethod
+    def get_token(cls, user):
+        token = super().get_token(user)
+        token['role'] = user.role
+        token['username'] = user.username
+        return token
 
-    @extend_schema(
-        tags=["Auth"],
-        operation_id="auth_register",
-        description="Регистрация нового пользователя с ролью и профилем.",
-    )
+
+@extend_schema(
+    tags=['Authentication'],
+    summary='Получить JWT-токены',
+    description='Возвращает access и refresh по логину и паролю.',
+)
+class JWTTokenObtainPairView(TokenObtainPairView):
+    serializer_class = CustomTokenObtainPairSerializer
+
+
+@extend_schema(
+    tags=['Authentication'],
+    summary='Обновить access-токен',
+    description='Возвращает новый access по действующему refresh-токену.',
+)
+class JWTTokenRefreshView(TokenRefreshView):
+    pass
+
+
+@extend_schema(
+    tags=['Authentication'],
+    summary='Регистрация нового пользователя',
+    description='Создаёт учётную запись участника и сразу возвращает JWT-токены.',
+)
+class RegisterView(APIView):
+    authentication_classes = []
+    permission_classes = []
+
     def post(self, request):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        serializer = RegisterSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
         user = serializer.save()
-        return Response(UserProfileSerializer(user).data, status=status.HTTP_201_CREATED)
 
-
-class LoginView(GenericAPIView):
-    permission_classes = (permissions.AllowAny,)
-    serializer_class = LoginSerializer
-
-    @extend_schema(
-        tags=["Auth"],
-        operation_id="auth_login",
-        description="Логин пользователя и выдача JWT access/refresh токенов.",
-    )
-    def post(self, request):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        user = serializer.validated_data["user"]
+        # Генерируем токены, добавляем role и username (как в CustomTokenObtainPairSerializer)
         refresh = RefreshToken.for_user(user)
+        refresh['role'] = user.role
+        refresh['username'] = user.username
+
         return Response(
             {
-                "refresh": str(refresh),
                 "access": str(refresh.access_token),
-                "user": UserProfileSerializer(user).data,
+                "refresh": str(refresh),
+                "user_id": user.pk,
+                "username": user.username,
+                "role": user.role,
             },
-            status=status.HTTP_200_OK,
+            status=status.HTTP_201_CREATED,
         )
-
-
-class RefreshView(TokenRefreshView):
-    permission_classes = (permissions.AllowAny,)
-
-    @extend_schema(
-        tags=["Auth"],
-        operation_id="auth_refresh",
-        description="Обновление access токена по refresh токену.",
-    )
-    def post(self, request, *args, **kwargs):
-        return super().post(request, *args, **kwargs)
-
-
-class MeView(GenericAPIView):
-    serializer_class = UserProfileSerializer
-    permission_classes = (permissions.IsAuthenticated,)
-
-    @extend_schema(
-        tags=["Auth"],
-        operation_id="auth_me",
-        description="Профиль текущего авторизованного пользователя.",
-    )
-    def get(self, request):
-        return Response(self.get_serializer(request.user).data, status=status.HTTP_200_OK)
