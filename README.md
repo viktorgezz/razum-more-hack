@@ -53,6 +53,17 @@
 - **Backend API:** <http://localhost:8000>
 - **API Документация (Swagger):** <http://localhost:8000/api/docs/>
 
+## Аккаунты по которым можно зайти и проверить работаспособность
+
+Аккаунты:
+
+- admin/admin123
+- org_ivanova/org123
+-org_petrov/org123
+- участники smirnov_alex
+- kozlova_maria / ... все с паролем user123
+- наблюдатель observer_hr/obs123.
+
 ## Схема проекта
 
 ```mermaid
