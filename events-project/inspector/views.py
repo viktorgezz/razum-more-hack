@@ -43,9 +43,9 @@ def candidates_queryset():
 
 
 @extend_schema(
-    tags=["Инспектор кадрового резерва"],
+    tags=["Reserve Inspector"],
     summary="Список кандидатов",
-    description="Список участников с расширенной фильтрацией для кадровой службы.",
+    description="Участники с расширенной фильтрацией для кадровой службы.",
     parameters=[
         OpenApiParameter(name="min_events", required=False, type=int, description="Минимум мероприятий"),
         OpenApiParameter(name="max_events", required=False, type=int, description="Максимум мероприятий"),
@@ -75,9 +75,9 @@ class CandidateListView(GenericAPIView):
 
 
 @extend_schema(
-    tags=["Инспектор кадрового резерва"],
+    tags=["Reserve Inspector"],
     summary="PDF-отчёт по кандидату",
-    description="Скачивание PDF-отчёта с краткой статистикой и последними участиями кандидата.",
+    description="Скачивание PDF со статистикой и последними участиями кандидата.",
     responses={
         200: OpenApiResponse(description="PDF-файл отчёта"),
         404: OpenApiResponse(description="Кандидат не найден"),

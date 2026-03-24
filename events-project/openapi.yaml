@@ -2,35 +2,188 @@ openapi: 3.0.3
 info:
   title: Платформа рейтинга активности молодёжного парламента
   version: 1.0.0
-  description: "\n## О проекте\nВеб-платформа для автоматизации учёта активности участников
-    молодёжного парламента и формирования прозрачного рейтинга кандидатов.\n## Роли
-    пользователей\n- **ORGANIZER** — создаёт мероприятия, верифицирует участие\n-
-    **PARTICIPANT** — участвует в мероприятиях, копит баллы\n- **OBSERVER** — просматривает
-    рейтинг, отбирает кандидатов\n- **ADMIN** — управляет платформой, настраивает
-    веса баллов\n## Аутентификация\nВсе эндпоинты требуют JWT-токен в заголовке:\n`Authorization:
-    Bearer <token>`\n    "
+  description: "\n## О проекте\nВеб-платформа для учёта активности участников и формирования
+    прозрачного рейтинга кандидатов.\n## Роли пользователей\n- **ORGANIZER** — создаёт
+    мероприятия, верифицирует участие\n- **PARTICIPANT** — участвует в мероприятиях,
+    копит баллы\n- **OBSERVER** — просматривает рейтинг, отбирает кандидатов\n- **ADMIN**
+    — управляет платформой, настраивает веса баллов\n## Аутентификация\nЗащищённые
+    эндпоинты требуют JWT в заголовке:\n`Authorization: Bearer <token>`\n    "
 paths:
+  /api/admin/organizers/{user_id}/approve/:
+    post:
+      operationId: admin_organizers_approve_create
+      description: Выдаёт права организатора (is_staff=True и роль ORGANIZER).
+      summary: Одобрить организатора
+      parameters:
+      - in: path
+        name: user_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Admin Panel
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizerModeration'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OrganizerModeration'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OrganizerModeration'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizerModeration'
+          description: ''
+  /api/admin/organizers/{user_id}/reject/:
+    post:
+      operationId: admin_organizers_reject_create
+      description: Снимает права организатора (is_staff=False, при необходимости роль
+        PARTICIPANT).
+      summary: Отклонить организатора
+      parameters:
+      - in: path
+        name: user_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Admin Panel
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizerModeration'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OrganizerModeration'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OrganizerModeration'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizerModeration'
+          description: ''
+  /api/admin/organizers/pending/:
+    get:
+      operationId: admin_organizers_pending_list
+      description: Пользователи, ожидающие модерации организатора.
+      summary: Кандидаты в организаторы
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      tags:
+      - Admin Panel
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPendingOrganizerList'
+          description: ''
+  /api/admin/point-weights/:
+    get:
+      operationId: admin_point_weights_list
+      description: Текущие веса по типам мероприятий и категориям.
+      summary: Список весов баллов
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      tags:
+      - Admin Panel
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPointWeightReadList'
+          description: ''
+  /api/admin/point-weights/{weight_id}/:
+    patch:
+      operationId: admin_point_weights_partial_update
+      description: Обновляет PointWeight и проставляет updated_by текущим администратором.
+      summary: Обновить вес баллов
+      parameters:
+      - in: path
+        name: weight_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Admin Panel
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedPointWeightPatch'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedPointWeightPatch'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedPointWeightPatch'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PointWeightRead'
+          description: ''
   /api/events/:
     get:
       operationId: events_list
-      description: Возвращает ленту мероприятий с пагинацией, фильтрацией и сортировкой.
+      description: Лента мероприятий с пагинацией, фильтрацией и сортировкой.
       summary: Список мероприятий
       parameters:
       - in: query
         name: category
         schema:
           type: string
-        description: Slug направления
+        description: Слаг направления
       - in: query
         name: date_from
         schema:
           type: string
-        description: Дата начала периода в формате YYYY-MM-DD
+        description: Начало периода (YYYY-MM-DD)
       - in: query
         name: date_to
         schema:
           type: string
-        description: Дата конца периода в формате YYYY-MM-DD
+        description: Конец периода (YYYY-MM-DD)
       - in: query
         name: event_type
         schema:
@@ -58,7 +211,7 @@ paths:
           type: string
         description: Статус мероприятия
       tags:
-      - Мероприятия
+      - Events
       security:
       - jwtAuth: []
       - {}
@@ -75,7 +228,7 @@ paths:
         становится текущий пользователь.
       summary: Создать мероприятие
       tags:
-      - Мероприятия
+      - Events
       requestBody:
         content:
           application/json:
@@ -100,7 +253,7 @@ paths:
   /api/events/{id}/:
     get:
       operationId: events_retrieve
-      description: Детальная информация о мероприятии и связанных призах.
+      description: Подробная информация о мероприятии и связанных призах.
       summary: Карточка мероприятия
       parameters:
       - in: path
@@ -110,7 +263,7 @@ paths:
         description: A unique integer value identifying this Мероприятие.
         required: true
       tags:
-      - Мероприятия
+      - Events
       security:
       - jwtAuth: []
       - {}
@@ -123,7 +276,8 @@ paths:
           description: ''
     put:
       operationId: events_update
-      description: 'Мероприятия: CRUD, регистрация, чекин и подтверждение участия.'
+      description: Полное обновление карточки мероприятия его организатором или администратором.
+      summary: Полная замена мероприятия
       parameters:
       - in: path
         name: id
@@ -132,7 +286,7 @@ paths:
         description: A unique integer value identifying this Мероприятие.
         required: true
       tags:
-      - events
+      - Events
       requestBody:
         content:
           application/json:
@@ -158,7 +312,7 @@ paths:
       operationId: events_partial_update
       description: Частичное обновление карточки мероприятия его организатором или
         администратором.
-      summary: Обновить мероприятие
+      summary: Частичное обновление мероприятия
       parameters:
       - in: path
         name: id
@@ -167,7 +321,7 @@ paths:
         description: A unique integer value identifying this Мероприятие.
         required: true
       tags:
-      - Мероприятия
+      - Events
       requestBody:
         content:
           application/json:
@@ -200,7 +354,7 @@ paths:
         description: A unique integer value identifying this Мероприятие.
         required: true
       tags:
-      - Мероприятия
+      - Events
       security:
       - jwtAuth: []
       responses:
@@ -209,7 +363,7 @@ paths:
   /api/events/{id}/checkin/:
     post:
       operationId: events_checkin_create
-      description: Подтверждает факт присутствия участника на мероприятии по QR-токену.
+      description: Подтверждает присутствие участника на мероприятии по QR-токену.
       summary: Отметиться по QR
       parameters:
       - in: path
@@ -219,7 +373,7 @@ paths:
         description: A unique integer value identifying this Мероприятие.
         required: true
       tags:
-      - Мероприятия
+      - Events
       requestBody:
         content:
           application/json:
@@ -244,8 +398,8 @@ paths:
   /api/events/{id}/confirm/{user_id}/:
     post:
       operationId: events_confirm_create
-      description: Организатор или администратор подтверждает участие конкретного
-        пользователя и начисляет баллы.
+      description: Организатор или администратор подтверждает участие пользователя
+        и начисляет баллы.
       summary: Подтвердить участие
       parameters:
       - in: path
@@ -261,7 +415,7 @@ paths:
         description: ID участника для подтверждения
         required: true
       tags:
-      - Мероприятия
+      - Events
       requestBody:
         content:
           application/json:
@@ -286,8 +440,7 @@ paths:
   /api/events/{id}/participants/:
     get:
       operationId: events_participants_list
-      description: Список регистраций на мероприятие. Доступен организатору события
-        и администратору.
+      description: Регистрации на мероприятие. Доступно организатору события и администратору.
       summary: Список участников
       parameters:
       - in: path
@@ -309,7 +462,7 @@ paths:
         schema:
           type: integer
       tags:
-      - Мероприятия
+      - Events
       security:
       - jwtAuth: []
       responses:
@@ -322,7 +475,7 @@ paths:
   /api/events/{id}/prizes/:
     get:
       operationId: events_prizes_list
-      description: GET возвращает призы мероприятия. POST добавляет новый приз организатором
+      description: GET — призы мероприятия. POST — добавление приза организатором
         или администратором.
       summary: Список или создание призов
       parameters:
@@ -345,7 +498,7 @@ paths:
         schema:
           type: integer
       tags:
-      - Мероприятия
+      - Events
       security:
       - jwtAuth: []
       - {}
@@ -364,7 +517,7 @@ paths:
           description: ''
     post:
       operationId: events_prizes_create
-      description: GET возвращает призы мероприятия. POST добавляет новый приз организатором
+      description: GET — призы мероприятия. POST — добавление приза организатором
         или администратором.
       summary: Список или создание призов
       parameters:
@@ -387,7 +540,7 @@ paths:
         schema:
           type: integer
       tags:
-      - Мероприятия
+      - Events
       requestBody:
         content:
           application/json:
@@ -428,7 +581,7 @@ paths:
         description: A unique integer value identifying this Мероприятие.
         required: true
       tags:
-      - Мероприятия
+      - Events
       requestBody:
         content:
           application/json:
@@ -459,7 +612,7 @@ paths:
   /api/inspector/candidates/:
     get:
       operationId: inspector_candidates_list
-      description: Список участников с расширенной фильтрацией для кадровой службы.
+      description: Участники с расширенной фильтрацией для кадровой службы.
       summary: Список кандидатов
       parameters:
       - in: query
@@ -497,7 +650,7 @@ paths:
         schema:
           type: integer
       tags:
-      - Инспектор кадрового резерва
+      - Reserve Inspector
       security:
       - jwtAuth: []
       responses:
@@ -510,8 +663,7 @@ paths:
   /api/inspector/candidates/{user_id}/report/:
     get:
       operationId: inspector_candidates_report_retrieve
-      description: Скачивание PDF-отчёта с краткой статистикой и последними участиями
-        кандидата.
+      description: Скачивание PDF со статистикой и последними участиями кандидата.
       summary: PDF-отчёт по кандидату
       parameters:
       - in: path
@@ -520,7 +672,7 @@ paths:
           type: integer
         required: true
       tags:
-      - Инспектор кадрового резерва
+      - Reserve Inspector
       security:
       - jwtAuth: []
       responses:
@@ -531,10 +683,10 @@ paths:
   /api/token/:
     post:
       operationId: token_create
-      description: Возвращает access и refresh токены по логину и паролю пользователя.
+      description: Возвращает access и refresh по логину и паролю.
       summary: Получить JWT-токены
       tags:
-      - Аутентификация
+      - Authentication
       requestBody:
         content:
           application/json:
@@ -557,10 +709,10 @@ paths:
   /api/token/refresh/:
     post:
       operationId: token_refresh_create
-      description: Возвращает новый access-токен по действующему refresh-токену.
+      description: Возвращает новый access по действующему refresh-токену.
       summary: Обновить access-токен
       tags:
-      - Аутентификация
+      - Authentication
       requestBody:
         content:
           application/json:
@@ -583,8 +735,7 @@ paths:
   /api/v1/organizers/:
     get:
       operationId: v1_organizers_list
-      description: Все верифицированные организаторы платформы с количеством проведённых
-        мероприятий.
+      description: Верифицированные организаторы платформы с числом проведённых мероприятий.
       summary: Список организаторов
       parameters:
       - name: page
@@ -594,7 +745,7 @@ paths:
         schema:
           type: integer
       tags:
-      - Профиль организатора
+      - Organizer Profiles
       security:
       - jwtAuth: []
       responses:
@@ -607,8 +758,7 @@ paths:
   /api/v1/organizers/{id}/:
     get:
       operationId: v1_organizers_retrieve
-      description: 'Подробная страница организатора: статистика мероприятий, средний
-        рейтинг доверия и типичные призы.'
+      description: Статистика мероприятий, средний рейтинг доверия и типичные призы.
       summary: Публичный профиль организатора
       parameters:
       - in: path
@@ -617,7 +767,7 @@ paths:
           type: integer
         required: true
       tags:
-      - Профиль организатора
+      - Organizer Profiles
       security:
       - jwtAuth: []
       responses:
@@ -630,7 +780,7 @@ paths:
   /api/v1/organizers/{id}/events/:
     get:
       operationId: v1_organizers_events_list
-      description: Список всех мероприятий, проведённых данным организатором.
+      description: Все мероприятия, созданные выбранным организатором.
       summary: Мероприятия организатора
       parameters:
       - in: path
@@ -645,7 +795,7 @@ paths:
         schema:
           type: integer
       tags:
-      - Профиль организатора
+      - Organizer Profiles
       security:
       - jwtAuth: []
       responses:
@@ -658,7 +808,7 @@ paths:
   /api/v1/organizers/{id}/reviews/:
     get:
       operationId: v1_organizers_reviews_list
-      description: Отзывы участников об организаторе с оценками от 1 до 5.
+      description: Отзывы участников с оценками от 1 до 5.
       summary: Отзывы об организаторе
       parameters:
       - in: path
@@ -673,7 +823,7 @@ paths:
         schema:
           type: integer
       tags:
-      - Профиль организатора
+      - Organizer Profiles
       security:
       - jwtAuth: []
       responses:
@@ -686,7 +836,7 @@ paths:
   /api/v1/organizers/{id}/reviews/{review_id}/:
     delete:
       operationId: v1_organizers_reviews_destroy
-      description: Участник может удалить только свой собственный отзыв.
+      description: Участник может удалить только свой отзыв.
       summary: Удалить свой отзыв
       parameters:
       - in: path
@@ -700,7 +850,7 @@ paths:
           type: integer
         required: true
       tags:
-      - Профиль организатора
+      - Organizer Profiles
       security:
       - jwtAuth: []
       responses:
@@ -709,8 +859,8 @@ paths:
   /api/v1/organizers/{id}/reviews/create/:
     post:
       operationId: v1_organizers_reviews_create_create
-      description: Только для участников. Можно оставить один отзыв на мероприятие
-        при условии подтверждённого участия.
+      description: 'Только для участников: один отзыв на мероприятие при подтверждённом
+        участии.'
       summary: Оставить отзыв
       parameters:
       - in: path
@@ -719,7 +869,7 @@ paths:
           type: integer
         required: true
       tags:
-      - Профиль организатора
+      - Organizer Profiles
       requestBody:
         content:
           application/json:
@@ -744,8 +894,7 @@ paths:
   /api/v1/ratings/leaderboard/:
     get:
       operationId: v1_ratings_leaderboard_list
-      description: Возвращает топ-100 участников по рейтингу. Можно фильтровать по
-        направлению.
+      description: Топ-100 участников по рейтингу с опциональной фильтрацией по направлению.
       summary: Таблица лидеров
       parameters:
       - in: query
@@ -764,7 +913,7 @@ paths:
         schema:
           type: integer
       tags:
-      - Рейтинговая система
+      - Ratings
       security:
       - jwtAuth: []
       responses:
@@ -777,8 +926,7 @@ paths:
   /api/v1/ratings/point-weights/:
     get:
       operationId: v1_ratings_point_weights_list
-      description: Коэффициенты для разных типов мероприятий, которые используются
-        при расчёте рейтинга.
+      description: Коэффициенты по типам мероприятий, используемые при расчёте рейтинга.
       summary: Список весов баллов
       parameters:
       - name: page
@@ -788,7 +936,7 @@ paths:
         schema:
           type: integer
       tags:
-      - Рейтинговая система
+      - Ratings
       security:
       - jwtAuth: []
       responses:
@@ -801,9 +949,8 @@ paths:
   /api/v1/ratings/point-weights/{id}/:
     put:
       operationId: v1_ratings_point_weights_update
-      description: Только для администраторов. Позволяет настроить коэффициент для
-        конкретного типа мероприятия.
-      summary: Изменить вес баллов
+      description: Admin-only endpoint to update event type weight.
+      summary: Update point weight
       parameters:
       - in: path
         name: id
@@ -811,7 +958,7 @@ paths:
           type: integer
         required: true
       tags:
-      - Рейтинговая система
+      - Ratings
       requestBody:
         content:
           application/json:
@@ -835,9 +982,8 @@ paths:
           description: ''
     patch:
       operationId: v1_ratings_point_weights_partial_update
-      description: Только для администраторов. Позволяет настроить коэффициент для
-        конкретного типа мероприятия.
-      summary: Изменить вес баллов
+      description: Admin-only endpoint to update event type weight.
+      summary: Update point weight
       parameters:
       - in: path
         name: id
@@ -845,7 +991,7 @@ paths:
           type: integer
         required: true
       tags:
-      - Рейтинговая система
+      - Ratings
       requestBody:
         content:
           application/json:
@@ -869,11 +1015,10 @@ paths:
   /api/v1/ratings/rebuild/:
     post:
       operationId: v1_ratings_rebuild_create
-      description: Только для администраторов. Пересчитывает рейтинг всех участников
-        и обновляет места в таблице.
+      description: 'Только для администраторов: пересчёт рейтингов и мест в таблице.'
       summary: Принудительный пересчёт рейтинга
       tags:
-      - Рейтинговая система
+      - Ratings
       security:
       - jwtAuth: []
       responses:
@@ -886,8 +1031,7 @@ paths:
   /api/v1/ratings/user/{user_id}/:
     get:
       operationId: v1_ratings_user_retrieve
-      description: Возвращает детальный рейтинг участника по всем направлениям и его
-        место в общем зачёте.
+      description: Детальный рейтинг участника по направлениям и место в общем зачёте.
       summary: Рейтинг пользователя
       parameters:
       - in: path
@@ -896,7 +1040,7 @@ paths:
           type: integer
         required: true
       tags:
-      - Рейтинговая система
+      - Ratings
       security:
       - jwtAuth: []
       responses:
@@ -1033,6 +1177,18 @@ components:
           type: string
       required:
       - qr_token
+    EventTypeB5cEnum:
+      enum:
+      - LECTURE
+      - HACKATHON
+      - FORUM
+      - VOLUNTEER
+      type: string
+      description: |-
+        * `LECTURE` - Лекция
+        * `HACKATHON` - Хакатон
+        * `FORUM` - Форум
+        * `VOLUNTEER` - Волонтёрство
     EventTypeEbeEnum:
       enum:
       - LECTURE
@@ -1114,6 +1270,25 @@ components:
       - events_count
       - id
       - username
+    OrganizerModeration:
+      type: object
+      properties:
+        detail:
+          type: string
+        user_id:
+          type: integer
+        is_staff:
+          type: boolean
+        is_active:
+          type: boolean
+        role:
+          type: string
+      required:
+      - detail
+      - is_active
+      - is_staff
+      - role
+      - user_id
     OrganizerProfile:
       type: object
       properties:
@@ -1347,6 +1522,29 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Participation'
+    PaginatedPendingOrganizerList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PendingOrganizer'
     PaginatedPointWeightList:
       type: object
       required:
@@ -1370,6 +1568,29 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PointWeight'
+    PaginatedPointWeightReadList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PointWeightRead'
     PaginatedPrizeList:
       type: object
       required:
@@ -1534,7 +1755,7 @@ components:
           type: integer
           readOnly: true
         event_type:
-          $ref: '#/components/schemas/PointWeightEventTypeEnum'
+          $ref: '#/components/schemas/EventTypeB5cEnum'
         category:
           type: integer
           nullable: true
@@ -1550,6 +1771,51 @@ components:
           type: string
           format: date-time
           readOnly: true
+    PatchedPointWeightPatch:
+      type: object
+      properties:
+        weight:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+        category:
+          type: integer
+          nullable: true
+    PendingOrganizer:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        username:
+          type: string
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          pattern: ^[\w.@+-]+$
+          maxLength: 150
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        email:
+          type: string
+          format: email
+          title: Email address
+          maxLength: 254
+        is_active:
+          type: boolean
+          title: Active
+          description: Designates whether this user should be treated as active. Unselect
+            this instead of deleting accounts.
+        is_staff:
+          type: boolean
+          title: Staff status
+          description: Designates whether the user can log into this admin site.
+      required:
+      - id
+      - username
     PointWeight:
       type: object
       properties:
@@ -1557,7 +1823,7 @@ components:
           type: integer
           readOnly: true
         event_type:
-          $ref: '#/components/schemas/PointWeightEventTypeEnum'
+          $ref: '#/components/schemas/EventTypeB5cEnum'
         category:
           type: integer
           nullable: true
@@ -1578,18 +1844,40 @@ components:
       - id
       - updated_at
       - updated_by
-    PointWeightEventTypeEnum:
-      enum:
-      - LECTURE
-      - HACKATHON
-      - FORUM
-      - VOLUNTEER
-      type: string
-      description: |-
-        * `LECTURE` - Лекция
-        * `HACKATHON` - Хакатон
-        * `FORUM` - Форум
-        * `VOLUNTEER` - Волонтёрство
+    PointWeightRead:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        event_type:
+          $ref: '#/components/schemas/EventTypeB5cEnum'
+        category:
+          type: integer
+          nullable: true
+        category_name:
+          type: string
+          readOnly: true
+        weight:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+        updated_by:
+          type: integer
+          nullable: true
+        updated_by_username:
+          type: string
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - category_name
+      - event_type
+      - id
+      - updated_at
+      - updated_by_username
     Prize:
       type: object
       properties:
@@ -1741,19 +2029,19 @@ components:
       scheme: bearer
       bearerFormat: JWT
 tags:
-- name: Аутентификация
-  description: Получение и обновление JWT-токенов для доступа к защищённым эндпоинтам.
-- name: Мероприятия
+- name: Authentication
+  description: Получение и обновление JWT-токенов.
+- name: Events
   description: Создание и управление мероприятиями, регистрация участников, чекин
-    по QR и выдача призов.
-- name: Рейтинговая система
-  description: 'Расчёт рейтинга участников, таблица лидеров и настройка весов баллов.
-    Рейтинг считается по формуле: сумма(баллы × коэффициент_сложности × вес_типа).
-    Поддерживается фильтрация по направлениям: IT, Социальное проектирование, Медиа.'
-- name: Профиль организатора
-  description: Публичные страницы организаторов, их мероприятия и система отзывов.
-    Рейтинг доверия организатора рассчитывается как среднее оценок от участников.
-    Оставить отзыв может только участник с подтверждённым участием в мероприятии.
-- name: Инспектор кадрового резерва
-  description: Расширенный поиск и отбор кандидатов для кадровой службы с возможностью
-    выгрузки PDF-отчётов.
+    по QR и призы.
+- name: Ratings
+  description: 'Расчёт рейтинга, таблица лидеров и настройка весов. Формула: сумма(баллы
+    × коэффициент сложности × вес типа). Фильтрация по направлениям: IT, Social, Media.'
+- name: Organizer Profiles
+  description: Публичные страницы организаторов, их мероприятия и отзывы. Рейтинг
+    доверия — среднее оценок участников. Отзыв может оставить только участник с подтверждённым
+    участием.
+- name: Reserve Inspector
+  description: Расширенный поиск кандидатов для кадровой службы и выгрузка PDF-отчётов.
+- name: Admin Panel
+  description: Модерация организаторов и настройка весов баллов.

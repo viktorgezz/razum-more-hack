@@ -3,18 +3,18 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 
 @extend_schema(
-    tags=['Аутентификация'],
+    tags=['Authentication'],
     summary='Получить JWT-токены',
-    description='Возвращает access и refresh токены по логину и паролю пользователя.',
+    description='Возвращает access и refresh по логину и паролю.',
 )
 class JWTTokenObtainPairView(TokenObtainPairView):
     pass
 
 
 @extend_schema(
-    tags=['Аутентификация'],
+    tags=['Authentication'],
     summary='Обновить access-токен',
-    description='Возвращает новый access-токен по действующему refresh-токену.',
+    description='Возвращает новый access по действующему refresh-токену.',
 )
 class JWTTokenRefreshView(TokenRefreshView):
     pass

@@ -17,40 +17,45 @@ User = get_user_model()
 
 
 EVENT_LIST_PARAMETERS = [
-    OpenApiParameter(name="category", description="Slug направления", required=False, type=str),
+    OpenApiParameter(name="category", description="Слаг направления", required=False, type=str),
     OpenApiParameter(name="status", description="Статус мероприятия", required=False, type=str),
     OpenApiParameter(name="event_type", description="Тип мероприятия", required=False, type=str),
     OpenApiParameter(name="organizer_id", description="ID организатора", required=False, type=int),
-    OpenApiParameter(name="date_from", description="Дата начала периода в формате YYYY-MM-DD", required=False, type=str),
-    OpenApiParameter(name="date_to", description="Дата конца периода в формате YYYY-MM-DD", required=False, type=str),
+    OpenApiParameter(name="date_from", description="Начало периода (YYYY-MM-DD)", required=False, type=str),
+    OpenApiParameter(name="date_to", description="Конец периода (YYYY-MM-DD)", required=False, type=str),
     OpenApiParameter(name="ordering", description="Поле сортировки", required=False, type=str),
 ]
 
 
 @extend_schema_view(
     list=extend_schema(
-        tags=["Мероприятия"],
+        tags=["Events"],
         summary="Список мероприятий",
-        description="Возвращает ленту мероприятий с пагинацией, фильтрацией и сортировкой.",
+        description="Лента мероприятий с пагинацией, фильтрацией и сортировкой.",
         parameters=EVENT_LIST_PARAMETERS,
     ),
     create=extend_schema(
-        tags=["Мероприятия"],
+        tags=["Events"],
         summary="Создать мероприятие",
         description="Доступно организатору или администратору. Организатором записи становится текущий пользователь.",
     ),
     retrieve=extend_schema(
-        tags=["Мероприятия"],
+        tags=["Events"],
         summary="Карточка мероприятия",
-        description="Детальная информация о мероприятии и связанных призах.",
+        description="Подробная информация о мероприятии и связанных призах.",
+    ),
+    update=extend_schema(
+        tags=["Events"],
+        summary="Полная замена мероприятия",
+        description="Полное обновление карточки мероприятия его организатором или администратором.",
     ),
     partial_update=extend_schema(
-        tags=["Мероприятия"],
-        summary="Обновить мероприятие",
+        tags=["Events"],
+        summary="Частичное обновление мероприятия",
         description="Частичное обновление карточки мероприятия его организатором или администратором.",
     ),
     destroy=extend_schema(
-        tags=["Мероприятия"],
+        tags=["Events"],
         summary="Удалить мероприятие",
         description="Удаление мероприятия его организатором или администратором.",
     ),
@@ -102,7 +107,7 @@ class EventViewSet(viewsets.ModelViewSet):
         instance.delete()
 
     @extend_schema(
-        tags=["Мероприятия"],
+        tags=["Events"],
         summary="Записаться на мероприятие",
         description="Создаёт заявку на участие и QR-токен для последующего чекина.",
         responses={200: ParticipationSerializer, 201: ParticipationSerializer},
@@ -117,9 +122,9 @@ class EventViewSet(viewsets.ModelViewSet):
         return Response(data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
 
     @extend_schema(
-        tags=["Мероприятия"],
+        tags=["Events"],
         summary="Отметиться по QR",
-        description="Подтверждает факт присутствия участника на мероприятии по QR-токену.",
+        description="Подтверждает присутствие участника на мероприятии по QR-токену.",
         request=inline_serializer(
             name="EventCheckInRequest",
             fields={"qr_token": serializers.CharField()},
@@ -140,9 +145,9 @@ class EventViewSet(viewsets.ModelViewSet):
         return Response(ParticipationSerializer(participation).data, status=status.HTTP_200_OK)
 
     @extend_schema(
-        tags=["Мероприятия"],
+        tags=["Events"],
         summary="Подтвердить участие",
-        description="Организатор или администратор подтверждает участие конкретного пользователя и начисляет баллы.",
+        description="Организатор или администратор подтверждает участие пользователя и начисляет баллы.",
         parameters=[
             OpenApiParameter(
                 name="user_id",
@@ -173,9 +178,9 @@ class EventViewSet(viewsets.ModelViewSet):
         return Response(ParticipationSerializer(participation).data, status=status.HTTP_200_OK)
 
     @extend_schema(
-        tags=["Мероприятия"],
+        tags=["Events"],
         summary="Список участников",
-        description="Список регистраций на мероприятие. Доступен организатору события и администратору.",
+        description="Регистрации на мероприятие. Доступно организатору события и администратору.",
         responses={200: ParticipationSerializer(many=True)},
     )
     @action(methods=["get"], detail=True, permission_classes=[IsAuthenticated])
@@ -190,9 +195,9 @@ class EventViewSet(viewsets.ModelViewSet):
         return Response(ParticipationSerializer(queryset, many=True).data)
 
     @extend_schema(
-        tags=["Мероприятия"],
+        tags=["Events"],
         summary="Список или создание призов",
-        description="GET возвращает призы мероприятия. POST добавляет новый приз организатором или администратором.",
+        description="GET — призы мероприятия. POST — добавление приза организатором или администратором.",
         request=PrizeSerializer,
         responses={200: PrizeSerializer(many=True), 201: PrizeSerializer},
     )
@@ -214,7 +219,11 @@ class EventViewSet(viewsets.ModelViewSet):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
-@extend_schema(tags=["Мероприятия"])
+@extend_schema(
+    tags=["Events"],
+    summary="Получить приз",
+    description="Детальная информация о призе и связанном мероприятии.",
+)
 class PrizeViewSet(mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     queryset = Prize.objects.select_related("event")
     serializer_class = PrizeSerializer

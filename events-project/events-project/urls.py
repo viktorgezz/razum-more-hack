@@ -24,6 +24,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/token/', JWTTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', JWTTokenRefreshView.as_view(), name='token_refresh'),
+    path('api/admin/', include('admin_panel.urls')),
     path('api/v1/ratings/', include('rating.urls')),
     path('api/v1/organizers/', include('organizers.urls')),
     path('api/events/', include('events.urls')),
