@@ -21,6 +21,39 @@
 
 **Backend** — Django REST Framework, JWT, OpenAPI (Swagger/ReDoc). **Frontend** — Next.js с обращением к REST API.
 
+## Запуск проекта (Docker)
+
+Самый быстрый способ развернуть весь проект целиком — использовать Docker Compose.
+
+1. **Клонируйте репозиторий:**
+
+   ```bash
+   git clone https://github.com/viktorgezz/razum-more-hack.git
+   cd razum-more-hack
+   ```
+
+2. **Настройте переменные окружения (.env):**
+
+   Скопируйте пример файла конфигурации:
+
+   ```bash
+   cp events-project/.env.example events-project/.env
+   ```
+
+   *По умолчанию настройки из примера подходят для локального запуска фронтенда (CORS разрешен для `http://localhost:3000`).*
+
+3. **Запустите контейнеры:**
+
+   ```bash
+   docker compose up -d --build
+   ```
+
+После окончания сборки:
+
+- **Frontend:** <http://localhost:3000>
+- **Backend API:** <http://localhost:8000>
+- **API Документация (Swagger):** <http://localhost:8000/api/docs/>
+
 ## Схема проекта
 
 ```mermaid
